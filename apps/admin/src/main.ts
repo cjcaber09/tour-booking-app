@@ -1,6 +1,8 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { saveRefreshToken, loadRefreshToken, clearRefreshToken } from './main/session-store';
+import { backendLogin, backendRefresh, backendLogout, backendMe } from './main/backend-client';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -29,6 +31,36 @@ const createWindow = () => {
   // Open the DevTools.
   mainWindow.webContents.openDevTools();
 };
+
+ipcMain.handle('auth:login', async (_event, email: string, password: string) => {
+  const { accessToken, refreshToken } = await backendLogin(email, password);
+  saveRefreshToken(refreshToken);
+  const admin = await backendMe(accessToken);
+  return { accessToken, admin };
+});
+
+ipcMain.handle('auth:getSession', async () => {
+  const refreshToken = loadRefreshToken();
+  if (!refreshToken) {
+    return null;
+  }
+  try {
+    const { accessToken } = await backendRefresh(refreshToken);
+    const admin = await backendMe(accessToken);
+    return { accessToken, admin };
+  } catch {
+    clearRefreshToken();
+    return null;
+  }
+});
+
+ipcMain.handle('auth:logout', async () => {
+  const refreshToken = loadRefreshToken();
+  if (refreshToken) {
+    await backendLogout(refreshToken);
+  }
+  clearRefreshToken();
+});
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
