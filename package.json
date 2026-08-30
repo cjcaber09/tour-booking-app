@@ -1,0 +1,7 @@
+{
+  "name": "andy-booking-app",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ]
+}
