@@ -8,6 +8,7 @@ import {
   refreshTokenExpiryDate,
   verifyRefreshToken,
 } from '../lib/tokens';
+import { requireAuth } from '../middleware/auth';
 
 export const authRouter = Router();
 
@@ -82,6 +83,19 @@ authRouter.post('/logout', async (req, res, next) => {
 
     await prisma.refreshToken.deleteMany({ where: { tokenHash: hashToken(refreshToken) } });
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.get('/me', requireAuth, async (req, res, next) => {
+  try {
+    const admin = await prisma.admin.findUnique({ where: { id: req.adminId } });
+    if (!admin) {
+      res.status(401).json({ error: 'invalid session' });
+      return;
+    }
+    res.json({ id: admin.id, email: admin.email, name: admin.name });
   } catch (err) {
     next(err);
   }
