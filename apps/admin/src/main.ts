@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { saveRefreshToken, loadRefreshToken, clearRefreshToken } from './main/session-store';
-import { backendLogin, backendRefresh, backendLogout, backendMe, backendCreateTour } from './main/backend-client';
+import { backendLogin, backendRefresh, backendLogout, backendMe, backendCreateTour, backendUploadImage } from './main/backend-client';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -71,6 +71,14 @@ ipcMain.handle('tours:create', async (_event, payload, accessToken) => {
     return await backendCreateTour(payload, accessToken);
   } catch (err) {
     throw new Error(err instanceof Error ? err.message : 'create failed');
+  }
+});
+
+ipcMain.handle('tours:upload-image', async (_event, fileBase64, filename, mimetype, accessToken) => {
+  try {
+    return await backendUploadImage(fileBase64, filename, mimetype, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'upload failed');
   }
 });
 

@@ -1,4 +1,4 @@
-import type { AdminSession, CreateTourPayload } from '../preload';
+import type { AdminSession, CreateTourPayload, UploadImageResult } from '../preload';
 
 declare global {
   interface Window {
@@ -9,6 +9,12 @@ declare global {
     };
     toursAPI: {
       create: (payload: CreateTourPayload, accessToken: string) => Promise<unknown>;
+      uploadImage: (
+        fileBase64: string,
+        filename: string,
+        mimetype: string,
+        accessToken: string,
+      ) => Promise<UploadImageResult>;
     };
   }
 }

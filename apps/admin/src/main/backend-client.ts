@@ -1,4 +1,4 @@
-import type { CreateTourPayload } from '../preload';
+import type { CreateTourPayload, UploadImageResult } from '../preload';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 
@@ -54,6 +54,28 @@ export async function backendCreateTour(payload: CreateTourPayload, accessToken:
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendUploadImage(
+  fileBase64: string,
+  filename: string,
+  mimetype: string,
+  accessToken: string,
+): Promise<UploadImageResult> {
+  const buffer = Buffer.from(fileBase64, 'base64');
+  const formData = new FormData();
+  formData.append('image', new Blob([buffer], { type: mimetype }), filename);
+
+  const res = await fetch(`${BACKEND_URL}/tours/upload-image`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
   });
   const body = await res.json();
   if (!res.ok) {

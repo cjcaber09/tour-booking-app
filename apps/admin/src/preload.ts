@@ -25,6 +25,10 @@ export interface CreateTourPayload {
   isActive?: boolean;
 }
 
+export interface UploadImageResult {
+  url: string;
+}
+
 contextBridge.exposeInMainWorld('authAPI', {
   login: (email: string, password: string): Promise<AdminSession> =>
     ipcRenderer.invoke('auth:login', email, password),
@@ -35,4 +39,11 @@ contextBridge.exposeInMainWorld('authAPI', {
 contextBridge.exposeInMainWorld('toursAPI', {
   create: (payload: CreateTourPayload, accessToken: string): Promise<unknown> =>
     ipcRenderer.invoke('tours:create', payload, accessToken),
+  uploadImage: (
+    fileBase64: string,
+    filename: string,
+    mimetype: string,
+    accessToken: string,
+  ): Promise<UploadImageResult> =>
+    ipcRenderer.invoke('tours:upload-image', fileBase64, filename, mimetype, accessToken),
 });
