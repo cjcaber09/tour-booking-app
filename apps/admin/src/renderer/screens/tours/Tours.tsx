@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { TourForm } from './TourForm';
 import './Tours.css';
 
 type Mode = 'idle' | 'form';
@@ -17,9 +18,7 @@ export function Tours() {
       </div>
 
       <div className={`tours-panel ${mode === 'form' ? 'tours-panel-open' : ''}`}>
-        <button className="neumorphic-button" onClick={() => setMode('idle')}>
-          Cancel
-        </button>
+        <TourForm onCancel={() => setMode('idle')} onCreated={() => setMode('idle')} />
       </div>
     </div>
   );
