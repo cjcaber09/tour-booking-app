@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Sidebar, type View } from './Sidebar';
 import { Dashboard } from '../screens/Dashboard';
 import { Settings } from '../screens/settings/Settings';
+import { Tours } from '../screens/tours/Tours';
 import { ComingSoon } from '../screens/ComingSoon';
 import './AppLayout.css';
 
@@ -13,10 +14,10 @@ function renderContent(activeView: View) {
       return <Dashboard />;
     case 'settings':
       return <Settings />;
+    case 'tours':
+      return <Tours />;
     case 'bookings':
       return <ComingSoon title="Bookings" />;
-    case 'tours':
-      return <ComingSoon title="Tours" />;
     case 'users':
       return <ComingSoon title="Users" />;
   }
