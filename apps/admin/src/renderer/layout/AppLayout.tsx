@@ -1,17 +1,26 @@
 import { useState } from 'react';
 import { Sidebar, type View } from './Sidebar';
 import { Dashboard } from '../screens/Dashboard';
+import { Settings } from '../screens/settings/Settings';
 import { ComingSoon } from '../screens/ComingSoon';
 import './AppLayout.css';
 
 const SIDEBAR_COLLAPSED_KEY = 'admin.sidebarCollapsed';
 
-const VIEW_TITLES: Record<Exclude<View, 'dashboard'>, string> = {
-  bookings: 'Bookings',
-  tours: 'Tours',
-  settings: 'Settings',
-  users: 'Users',
-};
+function renderContent(activeView: View) {
+  switch (activeView) {
+    case 'dashboard':
+      return <Dashboard />;
+    case 'settings':
+      return <Settings />;
+    case 'bookings':
+      return <ComingSoon title="Bookings" />;
+    case 'tours':
+      return <ComingSoon title="Tours" />;
+    case 'users':
+      return <ComingSoon title="Users" />;
+  }
+}
 
 export function AppLayout() {
   const [activeView, setActiveView] = useState<View>('dashboard');
@@ -35,13 +44,7 @@ export function AppLayout() {
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
       />
-      <main className="app-layout-content">
-        {activeView === 'dashboard' ? (
-          <Dashboard />
-        ) : (
-          <ComingSoon title={VIEW_TITLES[activeView]} />
-        )}
-      </main>
+      <main className="app-layout-content">{renderContent(activeView)}</main>
     </div>
   );
 }
