@@ -39,10 +39,10 @@ Out of scope (explicitly deferred):
   }
   body { font-family: var(--font-body); }
   ```
-- `--font-display` is applied to: the Login screen's `<h1>`, the Dashboard's title, and every
-  stat card's number. Everything else (labels, inputs, error text, recent-bookings rows) stays
-  on `--font-body` — Bebas Neue is all-caps/display-only and unreadable in paragraph or form
-  text.
+- `--font-display` is applied to: the Login screen's `<h1>`, the Dashboard's title, the
+  Dashboard's section headings, and every stat card's number. Everything else (labels, inputs,
+  error text, recent-bookings rows) stays on `--font-body` — Bebas Neue is all-caps/display-only
+  and unreadable in paragraph or form text.
 
 ## Layout cleanup
 

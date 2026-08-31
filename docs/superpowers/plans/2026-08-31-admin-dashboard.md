@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Fonts are self-hosted via `@fontsource/bebas-neue` and `@fontsource/open-sans` — no Google Fonts CDN link (Electron offline/CSP reliability).
-- Bebas Neue (`--font-display`) is used ONLY for: the Login `<h1>`, the Dashboard title, and stat card numbers. Every other text element uses Open Sans (`--font-body`) — Bebas Neue is display-only/all-caps and unreadable in body copy or form inputs.
+- Bebas Neue (`--font-display`) is used ONLY for headings and stat numbers: the Login `<h1>`, the Dashboard title, the Dashboard's section headings ("Bookings — last 7 days", "Recent bookings"), and stat card numbers. Every other text element uses Open Sans (`--font-body`) — Bebas Neue is display-only/all-caps and unreadable in body copy or form inputs.
 - Dashboard analytics are static mock data in one file (`screens/mockAnalytics.ts`). No backend analytics endpoint, no `Booking` data model — explicitly out of scope.
 - No sidebar/nav shell — only one authenticated screen exists after this plan.
 - No charting library — the trend chart is plain CSS divs.
