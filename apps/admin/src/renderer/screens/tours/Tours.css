@@ -49,15 +49,16 @@
 }
 
 .tour-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  max-width: 480px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem 1.5rem;
+  padding: 0 2rem;
   height: 100%;
   overflow-y: auto;
 }
 
 .tour-form h2 {
+  grid-column: 1 / -1;
   font-family: var(--font-display);
   font-size: 1.5rem;
   letter-spacing: 0.05em;
@@ -71,6 +72,10 @@
   gap: 0.5rem;
   font-size: 0.875rem;
   color: var(--color-text-secondary);
+}
+
+.tour-field-full {
+  grid-column: 1 / -1;
 }
 
 .tour-field input,
@@ -92,6 +97,16 @@
   resize: vertical;
 }
 
+.tour-field input[type='number']::-webkit-inner-spin-button,
+.tour-field input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.tour-field input[type='number'] {
+  -moz-appearance: textfield;
+}
+
 .tour-field-checkbox {
   flex-direction: row;
   align-items: center;
@@ -105,6 +120,7 @@
 }
 
 .tour-form-actions {
+  grid-column: 1 / -1;
   display: flex;
   gap: 0.75rem;
   margin-top: 0.5rem;

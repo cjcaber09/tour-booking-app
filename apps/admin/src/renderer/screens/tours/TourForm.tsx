@@ -118,16 +118,23 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
     <form className="tour-form" onSubmit={handleSubmit}>
       <h2>New Tour</h2>
 
-      <label className="tour-field">
+      <label className="tour-field tour-field-full">
         <span>Title</span>
-        <input name="title" value={form.title} onChange={(e) => update('title', e.target.value)} required />
+        <input
+          name="title"
+          placeholder="e.g. Sunset Kayak Tour"
+          value={form.title}
+          onChange={(e) => update('title', e.target.value)}
+          required
+        />
         {fieldErrors.title && <p className="tour-field-error">{fieldErrors.title}</p>}
       </label>
 
-      <label className="tour-field">
+      <label className="tour-field tour-field-full">
         <span>Description</span>
         <textarea
           name="description"
+          placeholder="Describe what makes this tour worth booking..."
           value={form.description}
           onChange={(e) => update('description', e.target.value)}
           required
@@ -137,7 +144,12 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
 
       <label className="tour-field">
         <span>Summary</span>
-        <input name="summary" value={form.summary} onChange={(e) => update('summary', e.target.value)} />
+        <input
+          name="summary"
+          placeholder="A short one-line summary for listings"
+          value={form.summary}
+          onChange={(e) => update('summary', e.target.value)}
+        />
       </label>
 
       <label className="tour-field">
@@ -145,6 +157,7 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
         <input
           name="price"
           type="number"
+          placeholder="0.00"
           value={form.price}
           onChange={(e) => update('price', e.target.value)}
           required
@@ -157,6 +170,7 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
         <input
           name="priceDiscount"
           type="number"
+          placeholder="Optional discounted price"
           value={form.priceDiscount}
           onChange={(e) => update('priceDiscount', e.target.value)}
         />
@@ -168,6 +182,7 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
         <input
           name="duration"
           type="number"
+          placeholder="e.g. 5"
           value={form.duration}
           onChange={(e) => update('duration', e.target.value)}
         />
@@ -179,6 +194,7 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
         <input
           name="maxGroupSize"
           type="number"
+          placeholder="e.g. 12"
           value={form.maxGroupSize}
           onChange={(e) => update('maxGroupSize', e.target.value)}
         />
@@ -199,7 +215,7 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
         </select>
       </label>
 
-      <label className="tour-field">
+      <label className="tour-field tour-field-full">
         <span>Image cover URL</span>
         <input
           name="imageCover"
@@ -210,16 +226,17 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
         {fieldErrors.imageCover && <p className="tour-field-error">{fieldErrors.imageCover}</p>}
       </label>
 
-      <label className="tour-field">
+      <label className="tour-field tour-field-full">
         <span>Start location</span>
         <input
           name="startLocation"
+          placeholder="e.g. Bali, Indonesia"
           value={form.startLocation}
           onChange={(e) => update('startLocation', e.target.value)}
         />
       </label>
 
-      <label className="tour-field tour-field-checkbox">
+      <label className="tour-field tour-field-checkbox tour-field-full">
         <input
           name="isActive"
           type="checkbox"
