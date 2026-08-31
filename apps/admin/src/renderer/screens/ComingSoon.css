@@ -7,11 +7,11 @@
   font-size: 2rem;
   letter-spacing: 0.05em;
   margin: 0 0 0.5rem;
-  color: #374151;
+  color: var(--color-text-heading);
 }
 
 .coming-soon p {
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-size: 0.875rem;
   margin: 0;
 }

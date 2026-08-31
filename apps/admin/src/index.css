@@ -5,6 +5,50 @@
 :root {
   --font-display: 'Bebas Neue', sans-serif;
   --font-body: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --color-bg: #e0e5ec;
+  --color-shadow-dark: #a3b1c6;
+  --color-shadow-light: #ffffff;
+  --color-sidebar-edge-shadow: rgba(163, 177, 198, 0.4);
+  --color-sidebar-hover: rgba(163, 177, 198, 0.25);
+  --color-text-heading: #374151;
+  --color-text-secondary: #4b5563;
+  --color-text-muted: #6b7280;
+  --color-text-stat: #1f2937;
+  --color-border: #c8d0dc;
+  --color-border-strong: #d3dae4;
+  --color-accent-start: #7c9cf0;
+  --color-accent-end: #4c6ef5;
+  --color-error: #b91c1c;
+  --color-status-confirmed-bg: #d1fae5;
+  --color-status-confirmed-text: #065f46;
+  --color-status-pending-bg: #fef3c7;
+  --color-status-pending-text: #92400e;
+  --color-status-cancelled-bg: #fee2e2;
+  --color-status-cancelled-text: #991b1b;
+}
+
+:root[data-theme='dark'] {
+  --color-bg: #242b3d;
+  --color-shadow-dark: #171c29;
+  --color-shadow-light: #2f3852;
+  --color-sidebar-edge-shadow: rgba(0, 0, 0, 0.45);
+  --color-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --color-text-heading: #e5e7eb;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #94a3b8;
+  --color-text-stat: #f8fafc;
+  --color-border: #313b52;
+  --color-border-strong: #3a4560;
+  --color-accent-start: #7c9cf0;
+  --color-accent-end: #5b7cf5;
+  --color-error: #f87171;
+  --color-status-confirmed-bg: #064e3b;
+  --color-status-confirmed-text: #6ee7b7;
+  --color-status-pending-bg: #78350f;
+  --color-status-pending-text: #fcd34d;
+  --color-status-cancelled-bg: #7f1d1d;
+  --color-status-cancelled-text: #fca5a5;
 }
 
 body {
@@ -16,17 +60,17 @@ body {
   padding: 0.75rem 1rem;
   border: none;
   border-radius: 12px;
-  background: #e0e5ec;
-  box-shadow: 6px 6px 12px #a3b1c6, -6px -6px 12px #ffffff;
+  background: var(--color-bg);
+  box-shadow: 6px 6px 12px var(--color-shadow-dark), -6px -6px 12px var(--color-shadow-light);
   font-family: var(--font-body);
   font-size: 1rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--color-text-heading);
   cursor: pointer;
 }
 
 .neumorphic-button:active {
-  box-shadow: inset 4px 4px 8px #a3b1c6, inset -4px -4px 8px #ffffff;
+  box-shadow: inset 4px 4px 8px var(--color-shadow-dark), inset -4px -4px 8px var(--color-shadow-light);
 }
 
 .neumorphic-button:disabled {
