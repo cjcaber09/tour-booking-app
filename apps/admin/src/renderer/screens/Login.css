@@ -4,7 +4,7 @@
   justify-content: center;
   height: 100vh;
   background: #e0e5ec;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-body);
 }
 
 .login-card {
@@ -16,6 +16,15 @@
   border-radius: 24px;
   background: #e0e5ec;
   box-shadow: 9px 9px 16px #a3b1c6, -9px -9px 16px #ffffff;
+}
+
+.login-card h1 {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  letter-spacing: 0.05em;
+  margin: 0;
+  text-align: center;
+  color: #374151;
 }
 
 .login-field {
@@ -40,25 +49,4 @@
   color: #b91c1c;
   font-size: 0.875rem;
   margin: 0;
-}
-
-.login-card button {
-  padding: 0.75rem 1rem;
-  border: none;
-  border-radius: 12px;
-  background: #e0e5ec;
-  box-shadow: 6px 6px 12px #a3b1c6, -6px -6px 12px #ffffff;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #374151;
-  cursor: pointer;
-}
-
-.login-card button:active {
-  box-shadow: inset 4px 4px 8px #a3b1c6, inset -4px -4px 8px #ffffff;
-}
-
-.login-card button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }

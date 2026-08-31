@@ -38,7 +38,7 @@ export function LoginScreen() {
           />
         </label>
         {error && <p className="login-error">{error}</p>}
-        <button type="submit" disabled={submitting}>
+        <button type="submit" className="neumorphic-button" disabled={submitting}>
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
