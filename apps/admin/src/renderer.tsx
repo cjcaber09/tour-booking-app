@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './renderer/App';
+import './index.css';
 
 const container = document.getElementById('app');
 if (!container) {

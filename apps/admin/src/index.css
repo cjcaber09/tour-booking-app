@@ -1,8 +1,35 @@
+@import '@fontsource/bebas-neue/index.css';
+@import '@fontsource/open-sans/index.css';
+@import '@fontsource/open-sans/600.css';
+
+:root {
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
 body {
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
-    sans-serif;
-  margin: auto;
-  max-width: 38rem;
-  padding: 2rem;
+  font-family: var(--font-body);
+  margin: 0;
+}
+
+.neumorphic-button {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 12px;
+  background: #e0e5ec;
+  box-shadow: 6px 6px 12px #a3b1c6, -6px -6px 12px #ffffff;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+.neumorphic-button:active {
+  box-shadow: inset 4px 4px 8px #a3b1c6, inset -4px -4px 8px #ffffff;
+}
+
+.neumorphic-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
