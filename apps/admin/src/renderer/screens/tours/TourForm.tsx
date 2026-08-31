@@ -147,6 +147,9 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
     try {
       let url: string;
       if (uploadedImage && uploadedImage.file === imageFile) {
+        // Reference equality is enough: the browser constructs a new File object on every
+        // file-input selection, even re-picking the same path, so this only hits on a retry
+        // of the same staged pick — not a false match after choosing a different file.
         url = uploadedImage.url;
       } else {
         const base64 = await fileToBase64(imageFile);
