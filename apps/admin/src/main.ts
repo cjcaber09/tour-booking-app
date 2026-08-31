@@ -33,10 +33,14 @@ const createWindow = () => {
 };
 
 ipcMain.handle('auth:login', async (_event, email: string, password: string) => {
-  const { accessToken, refreshToken } = await backendLogin(email, password);
-  saveRefreshToken(refreshToken);
-  const admin = await backendMe(accessToken);
-  return { accessToken, admin };
+  try {
+    const { accessToken, refreshToken } = await backendLogin(email, password);
+    saveRefreshToken(refreshToken);
+    const admin = await backendMe(accessToken);
+    return { accessToken, admin };
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'login failed');
+  }
 });
 
 ipcMain.handle('auth:getSession', async () => {

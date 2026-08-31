@@ -13,6 +13,15 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// Electron's ipcRenderer.invoke always wraps a handler's thrown error as
+// "Error invoking remote method '<channel>': Error: <message>" — strip that
+// wrapping so the UI shows the backend's actual error text.
+function cleanIpcErrorMessage(message: string): string {
+  return message
+    .replace(/^Error invoking remote method '[^']+':\s*/, '')
+    .replace(/^Error:\s*/, '');
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AdminSession | null>(null);
   const [status, setStatus] = useState<Status>('loading');
@@ -32,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(result);
       setStatus('authenticated');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'login failed');
+      setError(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'login failed');
       throw err;
     }
   }, []);
