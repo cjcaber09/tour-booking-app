@@ -8,12 +8,25 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum Difficulty {
+  easy
+  medium
+  difficult
+}
+
+enum AdminRole {
+  ADMIN
+  LEAD_GUIDE
+  GUIDE
+}
+
 model Admin {
-  id           String   @id @default(uuid())
-  email        String   @unique
+  id           String    @id @default(uuid())
+  email        String    @unique
   passwordHash String
   name         String
-  createdAt    DateTime @default(now())
+  role         AdminRole @default(ADMIN)
+  createdAt    DateTime  @default(now())
 }
 
 model RefreshToken {
@@ -22,4 +35,35 @@ model RefreshToken {
   tokenHash String
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+model Category {
+  id    String @id @default(uuid())
+  name  String
+  slug  String @unique
+  tours Tour[] @relation("TourCategories")
+}
+
+model Tour {
+  id              String      @id @default(uuid())
+  title           String
+  slug            String      @unique
+  description     String
+  summary         String?
+  duration        Int?
+  maxGroupSize    Int?
+  difficulty      Difficulty?
+  price           Decimal     @db.Decimal(10, 2)
+  priceDiscount   Decimal?    @db.Decimal(10, 2)
+  ratingsAverage  Decimal     @default(4.5) @db.Decimal(2, 1)
+  ratingsQuantity Int         @default(0)
+  imageCover      String
+  images          String[]
+  startDates      DateTime[]
+  startLocation   String?
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  categories Category[] @relation("TourCategories")
 }
