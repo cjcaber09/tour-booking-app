@@ -4,6 +4,7 @@ import { Dashboard } from '../screens/Dashboard';
 import { Settings } from '../screens/settings/Settings';
 import { Tours } from '../screens/tours/Tours';
 import { ComingSoon } from '../screens/ComingSoon';
+import { Toaster } from '../Toaster';
 import './AppLayout.css';
 
 const SIDEBAR_COLLAPSED_KEY = 'admin.sidebarCollapsed';
@@ -46,6 +47,7 @@ export function AppLayout() {
         onToggleCollapsed={toggleCollapsed}
       />
       <main className="app-layout-content">{renderContent(activeView)}</main>
+      <Toaster />
     </div>
   );
 }
