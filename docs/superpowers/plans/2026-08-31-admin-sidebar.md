@@ -274,16 +274,6 @@ export function ComingSoon({ title }: ComingSoonProps) {
   align-items: center;
   justify-content: center;
   padding: 0.5rem;
-  border: none;
-  border-radius: 12px;
-  background: #e0e5ec;
-  box-shadow: 6px 6px 12px #a3b1c6, -6px -6px 12px #ffffff;
-  color: #4b5563;
-  cursor: pointer;
-}
-
-.sidebar-collapse-toggle:active {
-  box-shadow: inset 4px 4px 8px #a3b1c6, inset -4px -4px 8px #ffffff;
 }
 
 .sidebar-chevron-collapsed {
@@ -356,7 +346,7 @@ export function Sidebar({ activeView, onNavigate, collapsed, onToggleCollapsed }
         </button>
 
         <button
-          className="sidebar-collapse-toggle"
+          className="neumorphic-button sidebar-collapse-toggle"
           onClick={onToggleCollapsed}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -367,6 +357,8 @@ export function Sidebar({ activeView, onNavigate, collapsed, onToggleCollapsed }
   );
 }
 ```
+
+The collapse toggle combines the global `.neumorphic-button` class (raised background/shadow/`:active` state, already defined in `apps/admin/src/index.css`) with `.sidebar-collapse-toggle` for icon-centering layout only — this avoids re-declaring the same box-shadow values a second time in `Sidebar.css`.
 
 `data-view` on each nav button gives verification (and any future test) a stable selector that works whether the sidebar is expanded or collapsed, since the visible label text disappears when collapsed.
 
