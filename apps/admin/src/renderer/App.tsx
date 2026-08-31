@@ -1,6 +1,6 @@
 import { AuthProvider, useAuth } from './AuthContext';
 import { LoginScreen } from './screens/Login';
-import { Dashboard } from './screens/Dashboard';
+import { AppLayout } from './layout/AppLayout';
 
 function AppShell() {
   const { status } = useAuth();
@@ -13,7 +13,7 @@ function AppShell() {
     return <LoginScreen />;
   }
 
-  return <Dashboard />;
+  return <AppLayout />;
 }
 
 export function App() {

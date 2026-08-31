@@ -1,0 +1,17 @@
+.coming-soon {
+  padding: 2rem;
+}
+
+.coming-soon h1 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.5rem;
+  color: #374151;
+}
+
+.coming-soon p {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0;
+}
