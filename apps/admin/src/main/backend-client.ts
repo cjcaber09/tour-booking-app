@@ -1,3 +1,5 @@
+import type { CreateTourPayload } from '../preload';
+
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 
 export interface AdminSummary {
@@ -45,4 +47,17 @@ export async function backendMe(accessToken: string): Promise<AdminSummary> {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   return parseJsonOrThrow(res);
+}
+
+export async function backendCreateTour(payload: CreateTourPayload, accessToken: string): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}/tours`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
 }

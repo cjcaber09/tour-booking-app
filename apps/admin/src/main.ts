@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { saveRefreshToken, loadRefreshToken, clearRefreshToken } from './main/session-store';
-import { backendLogin, backendRefresh, backendLogout, backendMe } from './main/backend-client';
+import { backendLogin, backendRefresh, backendLogout, backendMe, backendCreateTour } from './main/backend-client';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -64,6 +64,14 @@ ipcMain.handle('auth:logout', async () => {
     await backendLogout(refreshToken);
   }
   clearRefreshToken();
+});
+
+ipcMain.handle('tours:create', async (_event, payload, accessToken) => {
+  try {
+    return await backendCreateTour(payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'create failed');
+  }
 });
 
 // This method will be called when Electron has finished
