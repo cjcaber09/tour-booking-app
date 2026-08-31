@@ -52,6 +52,12 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function handleCancel() {
+    setForm(INITIAL_STATE);
+    setFieldErrors({});
+    onCancel();
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!session) {
@@ -165,6 +171,7 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
           value={form.duration}
           onChange={(e) => update('duration', e.target.value)}
         />
+        {fieldErrors.duration && <p className="tour-field-error">{fieldErrors.duration}</p>}
       </label>
 
       <label className="tour-field">
@@ -175,6 +182,7 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
           value={form.maxGroupSize}
           onChange={(e) => update('maxGroupSize', e.target.value)}
         />
+        {fieldErrors.maxGroupSize && <p className="tour-field-error">{fieldErrors.maxGroupSize}</p>}
       </label>
 
       <label className="tour-field">
@@ -222,7 +230,7 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
       </label>
 
       <div className="tour-form-actions">
-        <button type="button" className="neumorphic-button" onClick={onCancel} disabled={submitting}>
+        <button type="button" className="neumorphic-button" onClick={handleCancel} disabled={submitting}>
           Cancel
         </button>
         <button type="submit" className="neumorphic-button" disabled={submitting}>
