@@ -1,21 +1,11 @@
-import { useAuth } from '../AuthContext';
 import { stats, bookingsTrend, recentBookings } from './mockAnalytics';
 import './Dashboard.css';
 
 export function Dashboard() {
-  const { session, logout } = useAuth();
   const maxBookings = Math.max(...bookingsTrend.map((point) => point.bookings));
 
   return (
     <div className="dashboard">
-      <header className="dashboard-topbar">
-        <h1>Andy Tours Admin</h1>
-        <div className="dashboard-topbar-actions">
-          <span>{session?.admin.name}</span>
-          <button className="neumorphic-button" onClick={() => logout()}>Sign out</button>
-        </div>
-      </header>
-
       <section className="dashboard-stats">
         {stats.map((stat) => (
           <div className="stat-card" key={stat.label}>

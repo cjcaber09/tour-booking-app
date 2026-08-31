@@ -1,31 +1,6 @@
 .dashboard {
-  min-height: 100vh;
-  background: #e0e5ec;
   padding: 2rem;
   box-sizing: border-box;
-}
-
-.dashboard-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2rem;
-}
-
-.dashboard-topbar h1 {
-  font-family: var(--font-display);
-  font-size: 2rem;
-  letter-spacing: 0.05em;
-  margin: 0;
-  color: #374151;
-}
-
-.dashboard-topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  color: #4b5563;
-  font-size: 0.875rem;
 }
 
 .dashboard-stats {
