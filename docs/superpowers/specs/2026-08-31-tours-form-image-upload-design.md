@@ -122,6 +122,26 @@ would ever reference it, and there's no delete/garbage-collection endpoint. Inst
   pseudo-elements don't support arbitrary background/color styling reliably — this is the standard
   fix used across themed apps.)
 
+## Input placeholders
+
+Every text/number input in the form gets a `placeholder`, so the field's expected content is
+obvious before the admin types anything:
+
+| Field | Placeholder |
+|---|---|
+| Title | `e.g. Sunset Kayak Tour` |
+| Description | `Describe what makes this tour worth booking...` |
+| Summary | `A short one-line summary for listings` |
+| Price | `0.00` |
+| Price discount | `Optional discounted price` |
+| Duration (days) | `e.g. 5` |
+| Max group size | `e.g. 12` |
+| Start location | `e.g. Bali, Indonesia` |
+
+Not applicable: Difficulty (a `<select>` — its existing `—` option already serves this purpose),
+the Image file picker (native file inputs don't support placeholder text), and the Active checkbox
+(no text content to hint at).
+
 ## Error handling
 
 - Client-side file rejection (wrong type / too large): inline message under the Image section,
