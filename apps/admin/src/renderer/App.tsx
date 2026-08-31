@@ -1,8 +1,9 @@
 import { AuthProvider, useAuth } from './AuthContext';
 import { LoginScreen } from './screens/Login';
+import { Dashboard } from './screens/Dashboard';
 
 function AppShell() {
-  const { status, session, logout } = useAuth();
+  const { status } = useAuth();
 
   if (status === 'loading') {
     return <div>Loading…</div>;
@@ -12,12 +13,7 @@ function AppShell() {
     return <LoginScreen />;
   }
 
-  return (
-    <div>
-      <p>Signed in as {session?.admin.name}</p>
-      <button onClick={() => logout()}>Sign out</button>
-    </div>
-  );
+  return <Dashboard />;
 }
 
 export function App() {

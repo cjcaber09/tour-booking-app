@@ -1,0 +1,148 @@
+.dashboard {
+  min-height: 100vh;
+  background: #e0e5ec;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.dashboard-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.dashboard-topbar h1 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  letter-spacing: 0.05em;
+  margin: 0;
+  color: #374151;
+}
+
+.dashboard-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: #4b5563;
+  font-size: 0.875rem;
+}
+
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: #e0e5ec;
+  box-shadow: 9px 9px 16px #a3b1c6, -9px -9px 16px #ffffff;
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  letter-spacing: 0.03em;
+  color: #1f2937;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.dashboard-trend,
+.dashboard-recent {
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: #e0e5ec;
+  box-shadow: 9px 9px 16px #a3b1c6, -9px -9px 16px #ffffff;
+  margin-bottom: 2rem;
+}
+
+.dashboard-trend h2,
+.dashboard-recent h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: 0.03em;
+  margin: 0 0 1rem;
+  color: #374151;
+}
+
+.trend-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  height: 160px;
+}
+
+.trend-bar-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  height: 100%;
+}
+
+.trend-bar {
+  width: 100%;
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, #7c9cf0, #4c6ef5);
+  min-height: 4px;
+}
+
+.trend-bar-label {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.recent-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.recent-table th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  color: #6b7280;
+  font-weight: 600;
+  border-bottom: 1px solid #c8d0dc;
+}
+
+.recent-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #d3dae4;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-confirmed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
