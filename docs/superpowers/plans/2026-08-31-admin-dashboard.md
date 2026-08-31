@@ -33,7 +33,7 @@
 - Modify: `apps/admin/src/renderer.tsx`
 
 **Interfaces:**
-- Produces: CSS custom properties `--font-display` and `--font-body`, available globally to every component in this app from this task onward (consumed by Task 2 and Task 3).
+- Produces: CSS custom properties `--font-display` and `--font-body`, and a global `.neumorphic-button` class, available to every component in this app from this task onward (consumed by Task 2 and Task 3).
 
 - [ ] **Step 1: Install the font packages**
 
@@ -61,9 +61,33 @@ body {
   font-family: var(--font-body);
   margin: 0;
 }
+
+.neumorphic-button {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 12px;
+  background: #e0e5ec;
+  box-shadow: 6px 6px 12px #a3b1c6, -6px -6px 12px #ffffff;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+.neumorphic-button:active {
+  box-shadow: inset 4px 4px 8px #a3b1c6, inset -4px -4px 8px #ffffff;
+}
+
+.neumorphic-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 ```
 
 This removes the old `max-width: 38rem; padding: 2rem;` template leftovers and the old hardcoded font stack, replacing them with the two font variables every other task in this plan relies on. `margin: 0` replaces the old `margin: auto` — auto-centering a max-width column no longer makes sense once there's no max-width.
+
+`.neumorphic-button` is a shared class for the app's raised soft-UI buttons — added here because Task 3 needs the exact same button styling Login already has (`.login-card button` in `Login.css`), and duplicating that block into a second file would be the kind of copy-paste the codebase should avoid. Task 2 migrates Login's existing button onto this shared class instead of leaving two copies of the same CSS.
 
 - [ ] **Step 3: Import `index.css` in the renderer entry point**
 
@@ -105,13 +129,14 @@ Note: this repo uses root-level npm workspaces, so the lockfile change may land 
 
 ---
 
-### Task 2: Apply the display font to the Login screen
+### Task 2: Apply the display font to the Login screen, and de-duplicate its button
 
 **Files:**
 - Modify: `apps/admin/src/renderer/screens/Login.css`
+- Modify: `apps/admin/src/renderer/screens/Login.tsx`
 
 **Interfaces:**
-- Consumes: `--font-display`, `--font-body` (Task 1).
+- Consumes: `--font-display`, `--font-body`, `.neumorphic-button` (Task 1).
 
 - [ ] **Step 1: Update `.login-screen`'s font-family and add an `.login-card h1` rule**
 
@@ -156,18 +181,61 @@ Then add a new rule right after `.login-card`'s existing block:
 }
 ```
 
-- [ ] **Step 2: Manually verify**
+- [ ] **Step 2: Remove the now-duplicated button CSS and use the shared class instead**
+
+`Login.css` currently has its own copy of the raised-button styling that Task 1 moved into the global `.neumorphic-button` class (`index.css`). Delete these three rules from `apps/admin/src/renderer/screens/Login.css` entirely:
+
+```css
+.login-card button {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 12px;
+  background: #e0e5ec;
+  box-shadow: 6px 6px 12px #a3b1c6, -6px -6px 12px #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+.login-card button:active {
+  box-shadow: inset 4px 4px 8px #a3b1c6, inset -4px -4px 8px #ffffff;
+}
+
+.login-card button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+```
+
+Then in `apps/admin/src/renderer/screens/Login.tsx`, add the shared class to the submit button. Change:
+
+```tsx
+        <button type="submit" disabled={submitting}>
+          {submitting ? 'Signing in…' : 'Sign in'}
+        </button>
+```
+
+to:
+
+```tsx
+        <button type="submit" className="neumorphic-button" disabled={submitting}>
+          {submitting ? 'Signing in…' : 'Sign in'}
+        </button>
+```
+
+- [ ] **Step 3: Manually verify**
 
 ```bash
 node _tmp_drive.mjs shot 02-login-fonts
 ```
-Expected: screenshot shows "Andy Tours Admin" in the condensed Bebas Neue style (taller, narrower letterforms than before), while the Email/Password labels and input text remain in Open Sans.
+Expected: screenshot shows "Andy Tours Admin" in the condensed Bebas Neue style (taller, narrower letterforms than before); the Email/Password labels and input text remain in Open Sans; the "Sign in" button is visually unchanged (same raised shadow style as before, since `.neumorphic-button` carries identical values to the CSS it replaced).
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add apps/admin/src/renderer/screens/Login.css
-git commit -m "feat(admin): use Bebas Neue for the Login heading"
+git add apps/admin/src/renderer/screens/Login.css apps/admin/src/renderer/screens/Login.tsx
+git commit -m "feat(admin): use Bebas Neue for the Login heading, dedupe button CSS"
 ```
 
 ---
@@ -181,7 +249,7 @@ git commit -m "feat(admin): use Bebas Neue for the Login heading"
 - Modify: `apps/admin/src/renderer/App.tsx`
 
 **Interfaces:**
-- Consumes: `useAuth()` from `apps/admin/src/renderer/AuthContext.tsx` (`session: AdminSession | null`, `logout: () => Promise<void>`), where `AdminSession.admin` is `{ id: string; email: string; name: string }` (defined in `apps/admin/src/preload.ts`). Consumes `--font-display`/`--font-body` (Task 1).
+- Consumes: `useAuth()` from `apps/admin/src/renderer/AuthContext.tsx` (`session: AdminSession | null`, `logout: () => Promise<void>`), where `AdminSession.admin` is `{ id: string; email: string; name: string }` (defined in `apps/admin/src/preload.ts`). Consumes `--font-display`/`--font-body`/`.neumorphic-button` (Task 1).
 - Produces: `Dashboard` component (default export style: named export `Dashboard`), rendered by `App.tsx` when `status === 'authenticated'`.
 
 - [ ] **Step 1: Create `apps/admin/src/renderer/screens/mockAnalytics.ts`**
@@ -263,22 +331,6 @@ export const recentBookings: RecentBooking[] = [
   gap: 1rem;
   color: #4b5563;
   font-size: 0.875rem;
-}
-
-.dashboard-topbar-actions button {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 12px;
-  background: #e0e5ec;
-  box-shadow: 6px 6px 12px #a3b1c6, -6px -6px 12px #ffffff;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #374151;
-  cursor: pointer;
-}
-
-.dashboard-topbar-actions button:active {
-  box-shadow: inset 4px 4px 8px #a3b1c6, inset -4px -4px 8px #ffffff;
 }
 
 .dashboard-stats {
@@ -418,7 +470,7 @@ export function Dashboard() {
         <h1>Andy Tours Admin</h1>
         <div className="dashboard-topbar-actions">
           <span>{session?.admin.name}</span>
-          <button onClick={() => logout()}>Sign out</button>
+          <button className="neumorphic-button" onClick={() => logout()}>Sign out</button>
         </div>
       </header>
 
