@@ -12,10 +12,9 @@ export function slugify(text: string): string {
 
 export async function generateUniqueSlug(title: string): Promise<string> {
   const base = slugify(title);
-  const existing = await prisma.tour.findUnique({ where: { slug: base } });
-  if (!existing) {
-    return base;
+  let candidate = base;
+  while (await prisma.tour.findUnique({ where: { slug: candidate } })) {
+    candidate = `${base}-${crypto.randomBytes(3).toString('hex')}`;
   }
-  const suffix = crypto.randomBytes(3).toString('hex');
-  return `${base}-${suffix}`;
+  return candidate;
 }
