@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { ChangeEvent, FormEvent, useState } from 'react';
 import { useAuth } from '../../AuthContext';
 import { toast } from '../../toast';
 import type { CreateTourPayload } from '../../../preload';
@@ -12,7 +12,6 @@ interface FormState {
   title: string;
   description: string;
   price: string;
-  imageCover: string;
   summary: string;
   duration: string;
   maxGroupSize: string;
@@ -26,7 +25,6 @@ const INITIAL_STATE: FormState = {
   title: '',
   description: '',
   price: '',
-  imageCover: '',
   summary: '',
   duration: '',
   maxGroupSize: '',
@@ -36,10 +34,25 @@ const INITIAL_STATE: FormState = {
   isActive: true,
 };
 
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
 function cleanIpcErrorMessage(message: string): string {
   return message
     .replace(/^Error invoking remote method '[^']+':\s*/, '')
     .replace(/^Error:\s*/, '');
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.slice(result.indexOf(',') + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 export function TourForm({ onCancel, onCreated }: TourFormProps) {
@@ -47,68 +60,113 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
   const [form, setForm] = useState<FormState>(INITIAL_STATE);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+  const [imageError, setImageError] = useState('');
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function resetImage() {
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+    setImageFile(null);
+    setImagePreviewUrl('');
+    setImageError('');
+  }
+
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setImageError('Unsupported file type. Use JPEG, PNG, WebP, or GIF.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError('Image exceeds 5MB limit.');
+      return;
+    }
+
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+    setImageError('');
+    setImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+  }
+
   function handleCancel() {
     setForm(INITIAL_STATE);
     setFieldErrors({});
+    resetImage();
     onCancel();
+  }
+
+  function handleRequestError(err: unknown) {
+    const raw = err instanceof Error ? cleanIpcErrorMessage(err.message) : 'request failed';
+    try {
+      const parsed = JSON.parse(raw) as {
+        status?: number;
+        error?: string;
+        details?: Record<string, string[]>;
+      };
+      if (parsed.status === 401) {
+        toast.error('Session expired, please log in again.');
+      } else if (parsed.details) {
+        const flat: Record<string, string> = {};
+        for (const [field, messages] of Object.entries(parsed.details)) {
+          if (messages?.[0]) {
+            flat[field] = messages[0];
+          }
+        }
+        setFieldErrors(flat);
+      } else {
+        toast.error(parsed.error || 'Could not complete request.');
+      }
+    } catch {
+      toast.error(raw || 'Could not complete request.');
+    }
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!session) {
+    if (!session || !imageFile) {
       return;
     }
     setSubmitting(true);
     setFieldErrors({});
 
-    const payload: CreateTourPayload = {
-      title: form.title,
-      description: form.description,
-      price: Number(form.price),
-      imageCover: form.imageCover,
-      isActive: form.isActive,
-    };
-    if (form.summary) payload.summary = form.summary;
-    if (form.duration) payload.duration = Number(form.duration);
-    if (form.maxGroupSize) payload.maxGroupSize = Number(form.maxGroupSize);
-    if (form.difficulty) payload.difficulty = form.difficulty;
-    if (form.priceDiscount) payload.priceDiscount = Number(form.priceDiscount);
-    if (form.startLocation) payload.startLocation = form.startLocation;
-
     try {
+      const base64 = await fileToBase64(imageFile);
+      const { url } = await window.toursAPI.uploadImage(base64, imageFile.name, imageFile.type, session.accessToken);
+
+      const payload: CreateTourPayload = {
+        title: form.title,
+        description: form.description,
+        price: Number(form.price),
+        imageCover: url,
+        isActive: form.isActive,
+      };
+      if (form.summary) payload.summary = form.summary;
+      if (form.duration) payload.duration = Number(form.duration);
+      if (form.maxGroupSize) payload.maxGroupSize = Number(form.maxGroupSize);
+      if (form.difficulty) payload.difficulty = form.difficulty;
+      if (form.priceDiscount) payload.priceDiscount = Number(form.priceDiscount);
+      if (form.startLocation) payload.startLocation = form.startLocation;
+
       await window.toursAPI.create(payload, session.accessToken);
       toast.success('Tour created.');
       setForm(INITIAL_STATE);
+      resetImage();
       onCreated();
     } catch (err) {
-      const raw = err instanceof Error ? cleanIpcErrorMessage(err.message) : 'create failed';
-      try {
-        const parsed = JSON.parse(raw) as {
-          status?: number;
-          error?: string;
-          details?: Record<string, string[]>;
-        };
-        if (parsed.status === 401) {
-          toast.error('Session expired, please log in again.');
-        } else if (parsed.details) {
-          const flat: Record<string, string> = {};
-          for (const [field, messages] of Object.entries(parsed.details)) {
-            if (messages?.[0]) {
-              flat[field] = messages[0];
-            }
-          }
-          setFieldErrors(flat);
-        } else {
-          toast.error(parsed.error || 'Could not create tour.');
-        }
-      } catch {
-        toast.error(raw || 'Could not create tour.');
-      }
+      handleRequestError(err);
     } finally {
       setSubmitting(false);
     }
@@ -216,14 +274,10 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
       </label>
 
       <label className="tour-field tour-field-full">
-        <span>Image cover URL</span>
-        <input
-          name="imageCover"
-          value={form.imageCover}
-          onChange={(e) => update('imageCover', e.target.value)}
-          required
-        />
-        {fieldErrors.imageCover && <p className="tour-field-error">{fieldErrors.imageCover}</p>}
+        <span>Cover image</span>
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageChange} />
+        {imagePreviewUrl && <img className="tour-image-preview" src={imagePreviewUrl} alt="Cover preview" />}
+        {imageError && <p className="tour-field-error">{imageError}</p>}
       </label>
 
       <label className="tour-field tour-field-full">
@@ -250,7 +304,7 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
         <button type="button" className="neumorphic-button" onClick={handleCancel} disabled={submitting}>
           Cancel
         </button>
-        <button type="submit" className="neumorphic-button" disabled={submitting}>
+        <button type="submit" className="neumorphic-button" disabled={submitting || !imageFile}>
           {submitting ? 'Creating…' : 'Create Tour'}
         </button>
       </div>

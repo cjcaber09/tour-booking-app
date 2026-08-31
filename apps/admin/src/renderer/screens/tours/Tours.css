@@ -125,3 +125,11 @@
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
+
+.tour-image-preview {
+  width: 160px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: 4px 4px 8px var(--color-shadow-dark), -4px -4px 8px var(--color-shadow-light);
+}
