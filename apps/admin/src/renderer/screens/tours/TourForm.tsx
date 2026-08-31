@@ -63,6 +63,7 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
   const [imageError, setImageError] = useState('');
+  const [uploadedImage, setUploadedImage] = useState<{ file: File; url: string } | null>(null);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -75,6 +76,7 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
     setImageFile(null);
     setImagePreviewUrl('');
     setImageError('');
+    setUploadedImage(null);
   }
 
   function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
@@ -143,8 +145,14 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
     setFieldErrors({});
 
     try {
-      const base64 = await fileToBase64(imageFile);
-      const { url } = await window.toursAPI.uploadImage(base64, imageFile.name, imageFile.type, session.accessToken);
+      let url: string;
+      if (uploadedImage && uploadedImage.file === imageFile) {
+        url = uploadedImage.url;
+      } else {
+        const base64 = await fileToBase64(imageFile);
+        ({ url } = await window.toursAPI.uploadImage(base64, imageFile.name, imageFile.type, session.accessToken));
+        setUploadedImage({ file: imageFile, url });
+      }
 
       const payload: CreateTourPayload = {
         title: form.title,
