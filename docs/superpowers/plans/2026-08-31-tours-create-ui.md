@@ -351,7 +351,7 @@ Expected: a JSON object printed with `"title":"IPC Verify Tour"`, a derived `"sl
 ```bash
 node _tmp_drive.mjs eval "window.authAPI.getSession().then(s => window.toursAPI.create({ title: '' }, s.accessToken)).catch(e => e.message)"
 ```
-Expected: a JSON string containing `"status":400`, `"error":"validation failed"`, and a `"details":{"fieldErrors":{...}}` object with entries for the missing required fields (`title`, `description`, `price`, `imageCover`) — confirming `status` and `details` both survive the IPC round trip inside the error message, not just `error`.
+Expected: a JSON string containing `"status":400`, `"error":"validation failed"`, and a `"details":{...}` object whose keys are the missing required field names (`title`, `description`, `price`, `imageCover`), each mapped directly to an array of message strings (this is `zod`'s `.flatten().fieldErrors` shape passed straight through by the backend — `details` **is** the field-name-to-messages map itself, not `{ fieldErrors: {...} }`) — confirming `status` and `details` both survive the IPC round trip inside the error message, not just `error`.
 
 - [ ] **Step 7: Commit**
 
@@ -650,13 +650,13 @@ export function TourForm({ onCancel, onCreated }: TourFormProps) {
         const parsed = JSON.parse(raw) as {
           status?: number;
           error?: string;
-          details?: { fieldErrors?: Record<string, string[]> };
+          details?: Record<string, string[]>;
         };
         if (parsed.status === 401) {
           toast.error('Session expired, please log in again.');
-        } else if (parsed.details?.fieldErrors) {
+        } else if (parsed.details) {
           const flat: Record<string, string> = {};
-          for (const [field, messages] of Object.entries(parsed.details.fieldErrors)) {
+          for (const [field, messages] of Object.entries(parsed.details)) {
             if (messages?.[0]) {
               flat[field] = messages[0];
             }

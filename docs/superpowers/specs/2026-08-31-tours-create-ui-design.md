@@ -111,10 +111,11 @@ consistent app-wide.
 All controlled via a single `useState` object, following `AppearanceTab`'s pattern of simple local
 state rather than a form library (no form library exists in this app, and this field count doesn't
 justify adding one). No client-side re-implementation of the zod rules from the backend — the
-server is the single source of truth for validation. On submit, a `400` response's
-`details.fieldErrors` (the shape `POST /tours` returns — see the backend spec) is mapped directly
-to per-field error text shown under each input. Non-validation failures (network error, `401`,
-`500`) show an error toast instead, since they aren't attributable to one field.
+server is the single source of truth for validation. On submit, a `400` response's `details` object
+(the backend sends `parsed.error.flatten().fieldErrors` directly as `details` — i.e. `details`
+*is* the field-name-to-messages map, not `{ fieldErrors: {...} }`) is mapped directly to per-field
+error text shown under each input. Non-validation failures (network error, `401`, `500`) show an
+error toast instead, since they aren't attributable to one field.
 
 ## Toast notifications
 
@@ -175,8 +176,9 @@ Matches the existing `auth:login` chain exactly:
 **The one wrinkle:** Electron's IPC error channel only reliably carries a string (`Error.message`)
 end to end — confirmed by `AuthContext.tsx`'s existing `cleanIpcErrorMessage`, which already has to
 strip Electron's `"Error invoking remote method '...'"` wrapper off `err.message`, since that's the
-only field that survives the round trip. A `400`'s `details.fieldErrors` is structured data, so it
-has to travel inside that same string:
+only field that survives the round trip. A `400`'s `details` (the field-name-to-messages map the
+backend sends directly as `details`, not nested under a `.fieldErrors` key) is structured data, so
+it has to travel inside that same string:
 
 - `apps/admin/src/main/backend-client.ts` — new function, deliberately not reusing
   `parseJsonOrThrow` (which discards everything but `body.error`) because this call needs
@@ -199,7 +201,7 @@ has to travel inside that same string:
   `ipcMain.handle('tours:create', async (_event, payload, accessToken) => { try { return await backendCreateTour(payload, accessToken); } catch (err) { throw new Error(err instanceof Error ? err.message : 'create failed'); } })`.
   The JSON string survives as `err.message` through this rethrow unchanged.
 - `apps/admin/src/preload.ts` + `window.d.ts` — new `toursAPI.create(payload, accessToken)` exposed via `contextBridge`, typed in `window.d.ts` the same way `authAPI` is.
-- `Tours.tsx`/`TourForm.tsx` gets `accessToken` from `useAuth().session.accessToken` (already available — `AuthContext` already holds it for the logged-in admin). `TourForm`'s catch block runs the same `cleanIpcErrorMessage`-style strip, then attempts `JSON.parse` on the result: if it parses to `{ error, details }`, `details.fieldErrors` drives the inline field errors; if parsing fails (a plain-text message — network error, generic 500, etc.), the whole string is shown as an error toast instead.
+- `Tours.tsx`/`TourForm.tsx` gets `accessToken` from `useAuth().session.accessToken` (already available — `AuthContext` already holds it for the logged-in admin). `TourForm`'s catch block runs the same `cleanIpcErrorMessage`-style strip, then attempts `JSON.parse` on the result: if it parses to `{ error, details }`, `details` itself drives the inline field errors (one entry per invalid field, each an array of messages); if parsing fails (a plain-text message — network error, generic 500, etc.), the whole string is shown as an error toast instead.
 
 ## Error handling
 
