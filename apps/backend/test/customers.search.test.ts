@@ -1,0 +1,108 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from 'supertest';
+import { createApp } from '../src/app';
+import { prisma } from '../src/lib/prisma';
+import { hashPassword } from '../src/lib/password';
+import { signAccessToken } from '../src/lib/tokens';
+
+const app = createApp();
+const testEmail = `customers-search-test-${Date.now()}@example.com`;
+const testPassword = 'correct-horse-battery-staple';
+let adminId: string;
+let accessToken: string;
+const createdCustomerIds: string[] = [];
+
+const DB_HEAVY_TEST_TIMEOUT = 15000;
+
+beforeAll(async () => {
+  const admin = await prisma.admin.create({
+    data: { email: testEmail, passwordHash: await hashPassword(testPassword), name: 'Customers Search Test Admin' },
+  });
+  adminId = admin.id;
+  accessToken = signAccessToken({ adminId });
+
+  const base = Date.now();
+  const seeded = await Promise.all([
+    prisma.customer.create({
+      data: { email: `zendaya-search-${base}@example.com`, name: `Zendaya Search Match ${base}` },
+    }),
+    prisma.customer.create({
+      data: { email: `search-match-${base}@example.com`, name: 'Someone Else Entirely' },
+    }),
+    prisma.customer.create({
+      data: { email: `unrelated-${base}@example.com`, name: 'Totally Unrelated Person' },
+    }),
+  ]);
+  createdCustomerIds.push(...seeded.map((c) => c.id));
+}, DB_HEAVY_TEST_TIMEOUT);
+
+afterAll(async () => {
+  await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
+  await prisma.admin.delete({ where: { id: adminId } });
+  await prisma.$disconnect();
+});
+
+describe('GET /customers', () => {
+  it('rejects a request with no authorization header', async () => {
+    const res = await request(app).get('/customers').query({ q: 'anything' });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a missing q param', async () => {
+    const res = await request(app).get('/customers').set('Authorization', `Bearer ${accessToken}`);
+    expect(res.status).toBe(400);
+  });
+
+  it(
+    'matches by partial name, case-insensitive',
+    async () => {
+      const res = await request(app)
+        .get('/customers')
+        .query({ q: 'zendaya' })
+        .set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.customers.some((c: { name: string }) => c.name.includes('Zendaya Search Match'))).toBe(true);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'matches by partial email, case-insensitive',
+    async () => {
+      const res = await request(app)
+        .get('/customers')
+        .query({ q: 'SEARCH-MATCH' })
+        .set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(200);
+      const emails = res.body.customers.map((c: { email: string }) => c.email);
+      expect(emails.some((email: string) => email.includes('search-match-'))).toBe(true);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'respects the limit param',
+    async () => {
+      const res = await request(app)
+        .get('/customers')
+        .query({ q: 'search', limit: 1 })
+        .set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.customers.length).toBeLessThanOrEqual(1);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'returns an empty array when nothing matches',
+    async () => {
+      const res = await request(app)
+        .get('/customers')
+        .query({ q: `no-such-customer-${Date.now()}` })
+        .set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.customers).toEqual([]);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+});

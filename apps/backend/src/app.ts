@@ -3,6 +3,7 @@ import cors from 'cors';
 import { errorHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/auth';
 import { toursRouter } from './routes/tours';
+import { customersRouter } from './routes/customers';
 
 export function createApp() {
   const app = express();
@@ -15,6 +16,7 @@ export function createApp() {
 
   app.use('/auth', authRouter);
   app.use('/tours', toursRouter);
+  app.use('/customers', customersRouter);
 
   app.use(errorHandler);
 
