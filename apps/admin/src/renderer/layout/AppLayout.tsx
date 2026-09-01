@@ -3,6 +3,7 @@ import { Sidebar, type View } from './Sidebar';
 import { Dashboard } from '../screens/Dashboard';
 import { Settings } from '../screens/settings/Settings';
 import { Tours } from '../screens/tours/Tours';
+import { Bookings } from '../screens/bookings/Bookings';
 import { ComingSoon } from '../screens/ComingSoon';
 import { Toaster } from '../Toaster';
 import './AppLayout.css';
@@ -18,7 +19,7 @@ function renderContent(activeView: View) {
     case 'tours':
       return <Tours />;
     case 'bookings':
-      return <ComingSoon title="Bookings" />;
+      return <Bookings />;
     case 'users':
       return <ComingSoon title="Users" />;
   }
