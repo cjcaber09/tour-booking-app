@@ -1,4 +1,11 @@
-import type { CreateTourPayload, UploadImageResult } from '../preload';
+import type {
+  CreateTourPayload,
+  UpdateTourPayload,
+  UploadImageResult,
+  UploadImagesResult,
+  ListToursResult,
+  TourDetail,
+} from '../preload';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 
@@ -54,6 +61,64 @@ export async function backendCreateTour(payload: CreateTourPayload, accessToken:
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendListTours(page: number, limit: number, accessToken: string): Promise<ListToursResult> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const res = await fetch(`${BACKEND_URL}/tours?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendGetTour(id: string, accessToken: string): Promise<TourDetail> {
+  const res = await fetch(`${BACKEND_URL}/tours/${id}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendUpdateTour(id: string, payload: UpdateTourPayload, accessToken: string): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}/tours/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendDeleteTour(id: string, accessToken: string): Promise<void> {
+  const res = await fetch(`${BACKEND_URL}/tours/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  await parseJsonOrThrow(res);
+}
+
+export async function backendUploadImages(
+  files: { data: string; filename: string; mimetype: string }[],
+  accessToken: string,
+): Promise<UploadImagesResult> {
+  const formData = new FormData();
+  for (const file of files) {
+    const buffer = Buffer.from(file.data, 'base64');
+    formData.append('images', new Blob([buffer], { type: file.mimetype }), file.filename);
+  }
+
+  const res = await fetch(`${BACKEND_URL}/tours/upload-images`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
   });
   const body = await res.json();
   if (!res.ok) {

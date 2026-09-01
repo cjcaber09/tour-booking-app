@@ -2,7 +2,19 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { saveRefreshToken, loadRefreshToken, clearRefreshToken } from './main/session-store';
-import { backendLogin, backendRefresh, backendLogout, backendMe, backendCreateTour, backendUploadImage } from './main/backend-client';
+import {
+  backendLogin,
+  backendRefresh,
+  backendLogout,
+  backendMe,
+  backendCreateTour,
+  backendGetTour,
+  backendUpdateTour,
+  backendDeleteTour,
+  backendUploadImage,
+  backendUploadImages,
+  backendListTours,
+} from './main/backend-client';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -79,6 +91,49 @@ ipcMain.handle('tours:upload-image', async (_event, fileBase64, filename, mimety
     return await backendUploadImage(fileBase64, filename, mimetype, accessToken);
   } catch (err) {
     throw new Error(err instanceof Error ? err.message : 'upload failed');
+  }
+});
+
+ipcMain.handle(
+  'tours:upload-images',
+  async (_event, files: { data: string; filename: string; mimetype: string }[], accessToken: string) => {
+    try {
+      return await backendUploadImages(files, accessToken);
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'upload failed');
+    }
+  },
+);
+
+ipcMain.handle('tours:get', async (_event, id: string, accessToken: string) => {
+  try {
+    return await backendGetTour(id, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'get failed');
+  }
+});
+
+ipcMain.handle('tours:update', async (_event, id: string, payload, accessToken: string) => {
+  try {
+    return await backendUpdateTour(id, payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'update failed');
+  }
+});
+
+ipcMain.handle('tours:delete', async (_event, id: string, accessToken: string) => {
+  try {
+    return await backendDeleteTour(id, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'delete failed');
+  }
+});
+
+ipcMain.handle('tours:list', async (_event, page: number, limit: number, accessToken: string) => {
+  try {
+    return await backendListTours(page, limit, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'list failed');
   }
 });
 
