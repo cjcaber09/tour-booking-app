@@ -20,6 +20,19 @@ enum AdminRole {
   GUIDE
 }
 
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+}
+
 model Admin {
   id           String    @id @default(uuid())
   email        String    @unique
@@ -66,4 +79,43 @@ model Tour {
   updatedAt       DateTime    @updatedAt
 
   categories Category[] @relation("TourCategories")
+  bookings   Booking[]
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings Booking[]
+}
+
+model Booking {
+  id        String @id @default(uuid())
+  reference String @unique
+
+  tourId String
+  tour   Tour   @relation(fields: [tourId], references: [id])
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  participants Int
+  startDate    DateTime
+
+  totalPrice    Decimal       @db.Decimal(10, 2)
+  amountPaid    Decimal       @default(0) @db.Decimal(10, 2)
+  paymentStatus PaymentStatus @default(UNPAID)
+
+  status       BookingStatus @default(PENDING)
+  refundAmount Decimal?      @db.Decimal(10, 2)
+  cancelledAt  DateTime?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
