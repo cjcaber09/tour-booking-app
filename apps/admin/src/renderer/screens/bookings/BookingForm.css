@@ -1,0 +1,148 @@
+.booking-form {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  align-content: start;
+  gap: 1rem 1.5rem;
+  padding: 2rem;
+  height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.booking-form h2 {
+  grid-column: 1 / -1;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  letter-spacing: 0.05em;
+  margin: 0;
+  color: var(--color-text-heading);
+}
+
+.booking-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.booking-field-full {
+  grid-column: 1 / -1;
+}
+
+.booking-field input,
+.booking-field textarea,
+.booking-field select {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 12px;
+  background: var(--color-bg);
+  box-shadow: inset 4px 4px 8px var(--color-shadow-dark), inset -4px -4px 8px var(--color-shadow-light);
+  outline: none;
+  font-size: 1rem;
+  font-family: var(--font-body);
+  color: var(--color-text-heading);
+}
+
+.booking-field textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.booking-field input[type='number']::-webkit-inner-spin-button,
+.booking-field input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.booking-field-error {
+  color: var(--color-error);
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+.booking-customer-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: var(--color-bg);
+  box-shadow: inset 4px 4px 8px var(--color-shadow-dark), inset -4px -4px 8px var(--color-shadow-light);
+}
+
+.booking-customer-card > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.booking-customer-card strong {
+  font-size: 0.9375rem;
+  color: var(--color-text-heading);
+}
+
+.booking-customer-search,
+.booking-customer-new {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.booking-customer-search input,
+.booking-customer-new input {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 12px;
+  background: var(--color-bg);
+  box-shadow: inset 4px 4px 8px var(--color-shadow-dark), inset -4px -4px 8px var(--color-shadow-light);
+  outline: none;
+  font-size: 1rem;
+  font-family: var(--font-body);
+  color: var(--color-text-heading);
+}
+
+.booking-customer-search-status {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.booking-customer-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.booking-customer-results button {
+  width: 100%;
+  text-align: left;
+  padding: 0.625rem 0.875rem;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-bg);
+  box-shadow: 3px 3px 6px var(--color-shadow-dark), -3px -3px 6px var(--color-shadow-light);
+  font-size: 0.8125rem;
+  color: var(--color-text-heading);
+  cursor: pointer;
+}
+
+.booking-customer-results button:hover {
+  box-shadow: inset 2px 2px 4px var(--color-shadow-dark), inset -2px -2px 4px var(--color-shadow-light);
+}
+
+.booking-form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
