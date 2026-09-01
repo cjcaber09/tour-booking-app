@@ -5,6 +5,8 @@ import { authRouter } from './routes/auth';
 import { toursRouter } from './routes/tours';
 import { customersRouter } from './routes/customers';
 import { bookingsRouter } from './routes/bookings';
+import { publicRouter } from './routes/public';
+import { ipAllowlist } from './middleware/ipAllowlist';
 
 export function createApp() {
   const app = express();
@@ -19,6 +21,7 @@ export function createApp() {
   app.use('/tours', toursRouter);
   app.use('/customers', customersRouter);
   app.use('/bookings', bookingsRouter);
+  app.use('/public', ipAllowlist, publicRouter);
 
   app.use(errorHandler);
 
