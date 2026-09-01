@@ -5,6 +5,13 @@ import type {
   UploadImagesResult,
   ListToursResult,
   TourDetail,
+  BookingListFilters,
+  ListBookingsResult,
+  BookingDetail,
+  CreateBookingPayload,
+  UpdateBookingPayload,
+  CancelBookingPayload,
+  SearchCustomersResult,
 } from '../preload';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
@@ -125,6 +132,98 @@ export async function backendUploadImages(
     throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
   }
   return body;
+}
+
+export async function backendListBookings(
+  page: number,
+  limit: number,
+  filters: BookingListFilters,
+  accessToken: string,
+): Promise<ListBookingsResult> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (filters.status) params.set('status', filters.status);
+  if (filters.paymentStatus) params.set('paymentStatus', filters.paymentStatus);
+  if (filters.tourId) params.set('tourId', filters.tourId);
+  if (filters.customerId) params.set('customerId', filters.customerId);
+  if (filters.q) params.set('q', filters.q);
+  const res = await fetch(`${BACKEND_URL}/bookings?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendGetBooking(id: string, accessToken: string): Promise<BookingDetail> {
+  const res = await fetch(`${BACKEND_URL}/bookings/${id}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendCreateBooking(payload: CreateBookingPayload, accessToken: string): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}/bookings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendUpdateBooking(
+  id: string,
+  payload: UpdateBookingPayload,
+  accessToken: string,
+): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}/bookings/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendConfirmBooking(id: string, accessToken: string): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}/bookings/${id}/confirm`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendCancelBooking(
+  id: string,
+  payload: CancelBookingPayload,
+  accessToken: string,
+): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}/bookings/${id}/cancel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendSearchCustomers(q: string, accessToken: string): Promise<SearchCustomersResult> {
+  const params = new URLSearchParams({ q });
+  const res = await fetch(`${BACKEND_URL}/customers?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
 }
 
 export async function backendUploadImage(

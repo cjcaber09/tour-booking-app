@@ -6,6 +6,13 @@ import type {
   UploadImagesResult,
   ListToursResult,
   TourDetail,
+  BookingListFilters,
+  ListBookingsResult,
+  BookingDetail,
+  CreateBookingPayload,
+  UpdateBookingPayload,
+  CancelBookingPayload,
+  SearchCustomersResult,
 } from '../preload';
 
 declare global {
@@ -31,6 +38,22 @@ declare global {
         accessToken: string,
       ) => Promise<UploadImagesResult>;
       list: (page: number, limit: number, accessToken: string) => Promise<ListToursResult>;
+    };
+    bookingsAPI: {
+      list: (
+        page: number,
+        limit: number,
+        filters: BookingListFilters,
+        accessToken: string,
+      ) => Promise<ListBookingsResult>;
+      get: (id: string, accessToken: string) => Promise<BookingDetail>;
+      create: (payload: CreateBookingPayload, accessToken: string) => Promise<unknown>;
+      update: (id: string, payload: UpdateBookingPayload, accessToken: string) => Promise<unknown>;
+      confirm: (id: string, accessToken: string) => Promise<unknown>;
+      cancel: (id: string, payload: CancelBookingPayload, accessToken: string) => Promise<unknown>;
+    };
+    customersAPI: {
+      search: (q: string, accessToken: string) => Promise<SearchCustomersResult>;
     };
   }
 }

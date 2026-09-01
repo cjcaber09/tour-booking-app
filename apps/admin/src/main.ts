@@ -14,6 +14,13 @@ import {
   backendUploadImage,
   backendUploadImages,
   backendListTours,
+  backendListBookings,
+  backendGetBooking,
+  backendCreateBooking,
+  backendUpdateBooking,
+  backendConfirmBooking,
+  backendCancelBooking,
+  backendSearchCustomers,
 } from './main/backend-client';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -134,6 +141,62 @@ ipcMain.handle('tours:list', async (_event, page: number, limit: number, accessT
     return await backendListTours(page, limit, accessToken);
   } catch (err) {
     throw new Error(err instanceof Error ? err.message : 'list failed');
+  }
+});
+
+ipcMain.handle('bookings:list', async (_event, page, limit, filters, accessToken) => {
+  try {
+    return await backendListBookings(page, limit, filters, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'list failed');
+  }
+});
+
+ipcMain.handle('bookings:get', async (_event, id: string, accessToken: string) => {
+  try {
+    return await backendGetBooking(id, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'get failed');
+  }
+});
+
+ipcMain.handle('bookings:create', async (_event, payload, accessToken) => {
+  try {
+    return await backendCreateBooking(payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'create failed');
+  }
+});
+
+ipcMain.handle('bookings:update', async (_event, id: string, payload, accessToken: string) => {
+  try {
+    return await backendUpdateBooking(id, payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'update failed');
+  }
+});
+
+ipcMain.handle('bookings:confirm', async (_event, id: string, accessToken: string) => {
+  try {
+    return await backendConfirmBooking(id, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'confirm failed');
+  }
+});
+
+ipcMain.handle('bookings:cancel', async (_event, id: string, payload, accessToken: string) => {
+  try {
+    return await backendCancelBooking(id, payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'cancel failed');
+  }
+});
+
+ipcMain.handle('customers:search', async (_event, q: string, accessToken: string) => {
+  try {
+    return await backendSearchCustomers(q, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'search failed');
   }
 });
 
