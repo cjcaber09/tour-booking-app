@@ -14,6 +14,8 @@ let adminId: string;
 let accessToken: string;
 const createdTourIds: string[] = [];
 const createdCategoryIds: string[] = [];
+const createdBookingIds: string[] = [];
+const createdCustomerIds: string[] = [];
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
 
@@ -37,6 +39,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.booking.deleteMany({ where: { id: { in: createdBookingIds } } });
+  await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await prisma.category.deleteMany({ where: { id: { in: createdCategoryIds } } });
   await prisma.admin.delete({ where: { id: adminId } });
@@ -136,6 +140,45 @@ describe('DELETE /tours/:id', () => {
 
       const download = await supabase.storage.from(BUCKET).download(imagePath);
       expect(download.error).not.toBeNull();
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'rejects deleting a tour that has an existing booking (409)',
+    async () => {
+      const created = await request(app)
+        .post('/tours')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ title: 'Delete Blocked By Booking Tour', description: 'desc', price: 100 });
+      createdTourIds.push(created.body.id);
+
+      const customer = await prisma.customer.create({
+        data: { email: `tours-delete-booking-${Date.now()}@example.com`, name: 'Booking Blocker' },
+      });
+      createdCustomerIds.push(customer.id);
+
+      const booking = await prisma.booking.create({
+        data: {
+          reference: `BK-DELTEST${Date.now()}`,
+          tourId: created.body.id,
+          customerId: customer.id,
+          participants: 1,
+          startDate: new Date(),
+          totalPrice: 100,
+        },
+      });
+      createdBookingIds.push(booking.id);
+
+      const res = await request(app)
+        .delete(`/tours/${created.body.id}`)
+        .set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(409);
+
+      const followUp = await request(app)
+        .get(`/tours/${created.body.id}`)
+        .set('Authorization', `Bearer ${accessToken}`);
+      expect(followUp.status).toBe(200);
     },
     DB_HEAVY_TEST_TIMEOUT,
   );

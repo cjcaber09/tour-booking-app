@@ -211,6 +211,10 @@ toursRouter.delete('/:id', requireAuth, async (req, res, next) => {
       res.status(404).json({ error: 'tour not found' });
       return;
     }
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+      res.status(409).json({ error: 'cannot delete a tour with existing bookings' });
+      return;
+    }
     next(err);
   }
 });
