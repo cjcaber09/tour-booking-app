@@ -48,6 +48,12 @@ export const updateBookingSchema = z
 
 export type UpdateBookingInput = z.infer<typeof updateBookingSchema>;
 
+export const cancelBookingSchema = z.object({
+  refundAmount: z.number().nonnegative(),
+});
+
+export type CancelBookingInput = z.infer<typeof cancelBookingSchema>;
+
 export const listBookingsQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(10),

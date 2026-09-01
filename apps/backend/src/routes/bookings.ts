@@ -2,7 +2,12 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
-import { createBookingSchemaAdmin, listBookingsQuerySchema, updateBookingSchema } from './bookings.schema';
+import {
+  createBookingSchemaAdmin,
+  listBookingsQuerySchema,
+  updateBookingSchema,
+  cancelBookingSchema,
+} from './bookings.schema';
 import {
   createBooking,
   bookingInclude,
@@ -182,6 +187,67 @@ bookingsRouter.patch('/:id', requireAuth, async (req, res, next) => {
       res.status(404).json({ error: 'booking not found' });
       return;
     }
+    next(err);
+  }
+});
+
+bookingsRouter.post('/:id/confirm', requireAuth, async (req, res, next) => {
+  try {
+    const existing = await prisma.booking.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      res.status(404).json({ error: 'booking not found' });
+      return;
+    }
+    if (existing.status !== 'PENDING') {
+      res.status(409).json({ error: 'booking is not pending' });
+      return;
+    }
+
+    const booking = await prisma.booking.update({
+      where: { id: req.params.id },
+      data: { status: 'CONFIRMED' },
+      include: bookingInclude,
+    });
+    res.json(booking);
+  } catch (err) {
+    next(err);
+  }
+});
+
+bookingsRouter.post('/:id/cancel', requireAuth, async (req, res, next) => {
+  try {
+    const parsed = cancelBookingSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation failed', details: parsed.error.flatten().fieldErrors });
+      return;
+    }
+
+    const existing = await prisma.booking.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      res.status(404).json({ error: 'booking not found' });
+      return;
+    }
+    if (existing.status === 'CANCELLED') {
+      res.status(409).json({ error: 'booking is already cancelled' });
+      return;
+    }
+    if (parsed.data.refundAmount > Number(existing.amountPaid)) {
+      res.status(400).json({ error: 'refundAmount cannot exceed amountPaid' });
+      return;
+    }
+
+    const booking = await prisma.booking.update({
+      where: { id: req.params.id },
+      data: {
+        status: 'CANCELLED',
+        refundAmount: parsed.data.refundAmount,
+        cancelledAt: new Date(),
+        ...(parsed.data.refundAmount > 0 ? { paymentStatus: 'REFUNDED' } : {}),
+      },
+      include: bookingInclude,
+    });
+    res.json(booking);
+  } catch (err) {
     next(err);
   }
 });
