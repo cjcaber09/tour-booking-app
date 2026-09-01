@@ -31,3 +31,24 @@ export async function uploadTourImage(buffer: Buffer, filename: string, mimetype
 
   return data.signedUrl;
 }
+
+function extractStoragePath(signedUrl: string): string | null {
+  const marker = `/object/sign/${BUCKET}/`;
+  const idx = signedUrl.indexOf(marker);
+  if (idx === -1) {
+    return null;
+  }
+  return decodeURIComponent(signedUrl.slice(idx + marker.length).split('?')[0]);
+}
+
+export async function deleteTourImages(urls: string[]): Promise<void> {
+  const paths = urls.map(extractStoragePath).filter((path): path is string => path != null);
+  if (paths.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase.storage.from(BUCKET).remove(paths);
+  if (error) {
+    throw new Error(`failed to delete images: ${error.message}`);
+  }
+}

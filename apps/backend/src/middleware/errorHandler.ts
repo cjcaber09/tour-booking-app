@@ -2,8 +2,8 @@ import type { NextFunction, Request, Response } from 'express';
 import multer from 'multer';
 
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
-  if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-    res.status(400).json({ error: 'image exceeds 5MB limit' });
+  if (err instanceof multer.MulterError) {
+    res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'image exceeds 5MB limit' : 'invalid file upload' });
     return;
   }
   console.error(err);

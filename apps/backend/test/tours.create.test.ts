@@ -95,6 +95,21 @@ describe('POST /tours', () => {
     expect(res.body.categories).toEqual([]);
   });
 
+  it('creates a tour without an imageCover', async () => {
+    const res = await request(app)
+      .post('/tours')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        title: 'No Cover Tour',
+        description: 'Created without an image',
+        price: 100,
+      });
+
+    expect(res.status).toBe(201);
+    createdTourIds.push(res.body.id);
+    expect(res.body.imageCover).toBeNull();
+  });
+
   it('rejects a request with no authorization header', async () => {
     const res = await request(app).post('/tours').send({
       title: 'No Auth Tour',

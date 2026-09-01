@@ -57,7 +57,7 @@ model Tour {
   priceDiscount   Decimal?    @db.Decimal(10, 2)
   ratingsAverage  Decimal     @default(4.5) @db.Decimal(2, 1)
   ratingsQuantity Int         @default(0)
-  imageCover      String
+  imageCover      String?
   images          String[]
   startDates      DateTime[]
   startLocation   String?
