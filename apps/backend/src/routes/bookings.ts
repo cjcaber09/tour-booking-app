@@ -1,8 +1,16 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
-import { createBookingSchemaAdmin, listBookingsQuerySchema } from './bookings.schema';
-import { createBooking, bookingInclude, BookingServiceError } from '../lib/bookings';
+import { createBookingSchemaAdmin, listBookingsQuerySchema, updateBookingSchema } from './bookings.schema';
+import {
+  createBooking,
+  bookingInclude,
+  BookingServiceError,
+  resolveCustomer,
+  computeTotalPrice,
+  derivePaymentStatus,
+} from '../lib/bookings';
 
 export const bookingsRouter = Router();
 
@@ -107,6 +115,71 @@ bookingsRouter.post('/', requireAuth, async (req, res, next) => {
   } catch (err) {
     if (err instanceof BookingServiceError) {
       res.status(err.status).json({ error: err.message });
+      return;
+    }
+    next(err);
+  }
+});
+
+bookingsRouter.patch('/:id', requireAuth, async (req, res, next) => {
+  try {
+    const parsed = updateBookingSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation failed', details: parsed.error.flatten().fieldErrors });
+      return;
+    }
+
+    const existing = await prisma.booking.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      res.status(404).json({ error: 'booking not found' });
+      return;
+    }
+    if (existing.status === 'CANCELLED') {
+      res.status(409).json({ error: 'cannot edit a cancelled booking' });
+      return;
+    }
+
+    const { tourId, customerId, customer, participants, startDate, amountPaid, notes } = parsed.data;
+
+    let totalPrice = existing.totalPrice;
+    if (tourId !== undefined || participants !== undefined) {
+      ({ totalPrice } = await computeTotalPrice(
+        tourId ?? existing.tourId,
+        participants ?? existing.participants,
+        false,
+      ));
+    }
+
+    let resolvedCustomerId = existing.customerId;
+    if (customerId !== undefined || customer !== undefined) {
+      resolvedCustomerId = (await resolveCustomer({ customerId, customer })).id;
+    }
+
+    const effectiveAmountPaid = amountPaid !== undefined ? amountPaid : existing.amountPaid;
+
+    const booking = await prisma.booking.update({
+      where: { id: req.params.id },
+      data: {
+        ...(tourId !== undefined ? { tourId } : {}),
+        customerId: resolvedCustomerId,
+        ...(participants !== undefined ? { participants } : {}),
+        ...(startDate !== undefined ? { startDate: new Date(startDate) } : {}),
+        ...(amountPaid !== undefined ? { amountPaid } : {}),
+        ...(notes !== undefined ? { notes } : {}),
+        totalPrice,
+        paymentStatus: derivePaymentStatus(effectiveAmountPaid, totalPrice),
+      },
+      include: bookingInclude,
+    });
+
+    res.json(booking);
+  } catch (err) {
+    if (err instanceof BookingServiceError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+      res.status(404).json({ error: 'booking not found' });
       return;
     }
     next(err);

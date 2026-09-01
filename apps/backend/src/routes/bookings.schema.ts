@@ -31,6 +31,23 @@ export const createBookingSchemaPublic = bookingCoreSchema.extend({
 
 export type CreateBookingPublicInput = z.infer<typeof createBookingSchemaPublic>;
 
+export const updateBookingSchema = z
+  .object({
+    tourId: z.string().uuid().optional(),
+    customerId: z.string().uuid().optional(),
+    customer: customerInputSchema.optional(),
+    participants: z.number().int().positive().optional(),
+    startDate: z.string().datetime().optional(),
+    amountPaid: z.number().nonnegative().optional(),
+    notes: z.string().optional(),
+  })
+  .refine((data) => !(data.customerId != null && data.customer != null), {
+    message: 'provide at most one of customerId or customer',
+    path: ['customerId'],
+  });
+
+export type UpdateBookingInput = z.infer<typeof updateBookingSchema>;
+
 export const listBookingsQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(10),
