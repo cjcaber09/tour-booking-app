@@ -1,9 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+export type AdminRole = 'ADMIN' | 'LEAD_GUIDE' | 'GUIDE';
+
 export interface AdminSummary {
   id: string;
   email: string;
   name: string;
+  role: AdminRole;
+  avatarUrl: string | null;
+  phone: string | null;
+  createdAt: string;
+  lastLoginAt: string | null;
 }
 
 export interface AdminSession {
@@ -262,4 +269,96 @@ contextBridge.exposeInMainWorld('bookingsAPI', {
 contextBridge.exposeInMainWorld('customersAPI', {
   search: (q: string, accessToken: string): Promise<SearchCustomersResult> =>
     ipcRenderer.invoke('customers:search', q, accessToken),
+});
+
+export interface AuditEntry {
+  id: string;
+  timestamp: string;
+  method: string;
+  path: string;
+  status: number;
+  durationMs: number;
+  adminId: string | null;
+}
+
+export interface ListAuditEntriesResult {
+  entries: AuditEntry[];
+}
+
+contextBridge.exposeInMainWorld('auditAPI', {
+  list: (accessToken: string): Promise<ListAuditEntriesResult> => ipcRenderer.invoke('audit:list', accessToken),
+});
+
+export interface AppSettingsDto {
+  id: string;
+  key: string;
+  appName: string;
+  companyName: string;
+  logoUrl: string | null;
+  timezone: string;
+  dateFormat: string;
+  timeFormat: string;
+  language: string;
+  currency: string;
+  fiscalYearStartMonth: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateAppSettingsPayload {
+  appName?: string;
+  companyName?: string;
+  logoUrl?: string | null;
+  timezone?: string;
+  dateFormat?: string;
+  timeFormat?: string;
+  language?: string;
+  currency?: string;
+  fiscalYearStartMonth?: number;
+}
+
+export interface UploadLogoResult {
+  url: string;
+}
+
+contextBridge.exposeInMainWorld('settingsAPI', {
+  get: (accessToken: string): Promise<AppSettingsDto> => ipcRenderer.invoke('settings:get', accessToken),
+  update: (payload: UpdateAppSettingsPayload, accessToken: string): Promise<AppSettingsDto> =>
+    ipcRenderer.invoke('settings:update', payload, accessToken),
+  uploadLogo: (
+    fileBase64: string,
+    filename: string,
+    mimetype: string,
+    accessToken: string,
+  ): Promise<UploadLogoResult> => ipcRenderer.invoke('settings:upload-logo', fileBase64, filename, mimetype, accessToken),
+});
+
+export interface UpdateProfilePayload {
+  name?: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
+  role?: AdminRole;
+}
+
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface UploadAvatarResult {
+  url: string;
+}
+
+contextBridge.exposeInMainWorld('profileAPI', {
+  update: (payload: UpdateProfilePayload, accessToken: string): Promise<AdminSummary> =>
+    ipcRenderer.invoke('profile:update', payload, accessToken),
+  uploadAvatar: (
+    fileBase64: string,
+    filename: string,
+    mimetype: string,
+    accessToken: string,
+  ): Promise<UploadAvatarResult> =>
+    ipcRenderer.invoke('profile:upload-avatar', fileBase64, filename, mimetype, accessToken),
+  changePassword: (payload: ChangePasswordPayload, accessToken: string): Promise<void> =>
+    ipcRenderer.invoke('profile:change-password', payload, accessToken),
 });

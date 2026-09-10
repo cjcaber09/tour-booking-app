@@ -31,6 +31,15 @@ describe('POST /auth/login', () => {
     expect(res.body.refreshToken).toBeTypeOf('string');
   });
 
+  it('stamps lastLoginAt on the admin row', async () => {
+    const res = await request(app).post('/auth/login').send({ email: testEmail, password: testPassword });
+    expect(res.status).toBe(200);
+
+    const admin = await prisma.admin.findUnique({ where: { email: testEmail } });
+    expect(admin?.lastLoginAt).toBeInstanceOf(Date);
+    expect(admin!.lastLoginAt!.getTime()).toBeGreaterThan(Date.now() - 5000);
+  });
+
   it('rejects an unknown email', async () => {
     const res = await request(app).post('/auth/login').send({ email: 'nobody@example.com', password: testPassword });
     expect(res.status).toBe(401);
@@ -46,5 +55,24 @@ describe('POST /auth/login', () => {
   it('rejects a missing password', async () => {
     const res = await request(app).post('/auth/login').send({ email: testEmail });
     expect(res.status).toBe(400);
+  });
+
+  it('rejects a suspended admin (403)', async () => {
+    const email = `login-test-suspended-${Date.now()}@example.com`;
+    const suspended = await prisma.admin.create({
+      data: {
+        email,
+        passwordHash: await hashPassword(testPassword),
+        name: 'Suspended Admin',
+        isActive: false,
+      },
+    });
+    try {
+      const res = await request(app).post('/auth/login').send({ email, password: testPassword });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('account is suspended');
+    } finally {
+      await prisma.admin.delete({ where: { id: suspended.id } });
+    }
   });
 });

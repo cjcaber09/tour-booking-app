@@ -25,6 +25,13 @@ import {
   backendRecordPayment,
   backendUploadPaymentProof,
   backendSearchCustomers,
+  backendListAudit,
+  backendGetSettings,
+  backendUpdateSettings,
+  backendUploadLogo,
+  backendUpdateProfile,
+  backendUploadAvatar,
+  backendChangePassword,
 } from './main/backend-client';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -254,6 +261,62 @@ ipcMain.handle('customers:search', async (_event, q: string, accessToken: string
     return await backendSearchCustomers(q, accessToken);
   } catch (err) {
     throw new Error(err instanceof Error ? err.message : 'search failed');
+  }
+});
+
+ipcMain.handle('audit:list', async (_event, accessToken: string) => {
+  try {
+    return await backendListAudit(accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'list failed');
+  }
+});
+
+ipcMain.handle('settings:get', async (_event, accessToken: string) => {
+  try {
+    return await backendGetSettings(accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'get failed');
+  }
+});
+
+ipcMain.handle('settings:update', async (_event, payload, accessToken: string) => {
+  try {
+    return await backendUpdateSettings(payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'update failed');
+  }
+});
+
+ipcMain.handle('settings:upload-logo', async (_event, fileBase64, filename, mimetype, accessToken) => {
+  try {
+    return await backendUploadLogo(fileBase64, filename, mimetype, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'upload failed');
+  }
+});
+
+ipcMain.handle('profile:update', async (_event, payload, accessToken: string) => {
+  try {
+    return await backendUpdateProfile(payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'update failed');
+  }
+});
+
+ipcMain.handle('profile:upload-avatar', async (_event, fileBase64, filename, mimetype, accessToken) => {
+  try {
+    return await backendUploadAvatar(fileBase64, filename, mimetype, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'upload failed');
+  }
+});
+
+ipcMain.handle('profile:change-password', async (_event, payload, accessToken: string) => {
+  try {
+    return await backendChangePassword(payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'change password failed');
   }
 });
 

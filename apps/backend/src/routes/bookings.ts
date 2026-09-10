@@ -174,19 +174,22 @@ bookingsRouter.patch('/:id', requireAuth, async (req, res, next) => {
       return;
     }
 
-    let totalPrice = existing.totalPrice;
-    if (tourId !== undefined || participants !== undefined) {
-      ({ totalPrice } = await computeTotalPrice(
-        tourId ?? existing.tourId,
-        participants ?? existing.participants,
-        false,
-      ));
-    }
+    // The tour/participants branch and the customer branch touch independent tables and
+    // don't depend on each other's result, so they're resolved concurrently rather than
+    // as two sequential round trips.
+    const totalPricePromise =
+      tourId !== undefined || participants !== undefined
+        ? computeTotalPrice(tourId ?? existing.tourId, participants ?? existing.participants, false).then(
+            (r) => r.totalPrice,
+          )
+        : Promise.resolve(existing.totalPrice);
 
-    let resolvedCustomerId = existing.customerId;
-    if (customerId !== undefined || customer !== undefined) {
-      resolvedCustomerId = (await resolveCustomer({ customerId, customer })).id;
-    }
+    const resolvedCustomerIdPromise =
+      customerId !== undefined || customer !== undefined
+        ? resolveCustomer({ customerId, customer }).then((c) => c.id)
+        : Promise.resolve(existing.customerId);
+
+    const [totalPrice, resolvedCustomerId] = await Promise.all([totalPricePromise, resolvedCustomerIdPromise]);
 
     const effectiveAmountPaid = amountPaid !== undefined ? amountPaid : existing.amountPaid;
 

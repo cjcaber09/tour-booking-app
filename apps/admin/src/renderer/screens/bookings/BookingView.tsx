@@ -1,5 +1,6 @@
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '../../components/ui/button';
+import { useAppSettings } from '../../AppSettingsContext';
 import type { BookingDetail } from '../../../preload';
 
 interface BookingViewProps {
@@ -8,6 +9,8 @@ interface BookingViewProps {
 }
 
 export function BookingView({ booking, onBack }: BookingViewProps) {
+  const { formatCurrency, formatDate, formatDateTime } = useAppSettings();
+
   return (
     <div className="detail-view">
       <Button className="action-button" onClick={onBack}>
@@ -42,33 +45,33 @@ export function BookingView({ booking, onBack }: BookingViewProps) {
 
         <div className="detail-field">
           <span className="detail-label">Start date</span>
-          <span>{new Date(booking.startDate).toLocaleDateString()}</span>
+          <span>{formatDate(booking.startDate)}</span>
         </div>
 
         <div className="detail-field">
           <span className="detail-label">Finish date</span>
-          <span>{new Date(booking.finishDate).toLocaleDateString()}</span>
+          <span>{formatDate(booking.finishDate)}</span>
         </div>
 
         <div className="detail-field">
           <span className="detail-label">Total price</span>
-          <span>${Number(booking.totalPrice).toFixed(2)}</span>
+          <span>{formatCurrency(booking.totalPrice)}</span>
         </div>
 
         <div className="detail-field">
           <span className="detail-label">Amount paid</span>
-          <span>${Number(booking.amountPaid).toFixed(2)}</span>
+          <span>{formatCurrency(booking.amountPaid)}</span>
         </div>
 
         {booking.status === 'CANCELLED' && (
           <>
             <div className="detail-field">
               <span className="detail-label">Refunded</span>
-              <span>{booking.refundAmount != null ? `$${Number(booking.refundAmount).toFixed(2)}` : '—'}</span>
+              <span>{booking.refundAmount != null ? formatCurrency(booking.refundAmount) : '—'}</span>
             </div>
             <div className="detail-field">
               <span className="detail-label">Cancelled at</span>
-              <span>{booking.cancelledAt ? new Date(booking.cancelledAt).toLocaleString() : '—'}</span>
+              <span>{booking.cancelledAt ? formatDateTime(booking.cancelledAt) : '—'}</span>
             </div>
           </>
         )}
@@ -95,8 +98,8 @@ export function BookingView({ booking, onBack }: BookingViewProps) {
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {booking.payments.map((payment) => (
               <li key={payment.id} className="flex items-center justify-between gap-3 text-sm text-heading">
-                <span>{new Date(payment.createdAt).toLocaleString()}</span>
-                <span>${Number(payment.amount).toFixed(2)}</span>
+                <span>{formatDateTime(payment.createdAt)}</span>
+                <span>{formatCurrency(payment.amount)}</span>
                 <span className="text-muted">
                   {payment.method === 'CASH' && 'Cash'}
                   {payment.method === 'INVOICE_REFERENCE' && `Invoice: ${payment.invoiceReference}`}

@@ -1,5 +1,6 @@
 import { LoaderCircle } from 'lucide-react';
 import { AuthProvider, useAuth } from './AuthContext';
+import { AppSettingsProvider } from './AppSettingsContext';
 import { LoginScreen } from './screens/Login';
 import { AppLayout } from './layout/AppLayout';
 
@@ -25,7 +26,9 @@ function AppShell() {
 export function App() {
   return (
     <AuthProvider>
-      <AppShell />
+      <AppSettingsProvider>
+        <AppShell />
+      </AppSettingsProvider>
     </AuthProvider>
   );
 }

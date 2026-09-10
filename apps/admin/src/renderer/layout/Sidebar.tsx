@@ -10,11 +10,12 @@ import {
   ToursIcon,
   SettingsIcon,
   UsersIcon,
+  AuditIcon,
   ChevronIcon,
   SignOutIcon,
 } from './icons';
 
-export type View = 'dashboard' | 'bookings' | 'calendar' | 'tours' | 'settings' | 'users';
+export type View = 'dashboard' | 'bookings' | 'calendar' | 'tours' | 'settings' | 'users' | 'audit';
 
 interface SidebarProps {
   activeView: View;
@@ -30,6 +31,10 @@ const NAV_ITEMS: { view: View; label: string; Icon: typeof DashboardIcon }[] = [
   { view: 'tours', label: 'Tours', Icon: ToursIcon },
   { view: 'settings', label: 'Settings', Icon: SettingsIcon },
   { view: 'users', label: 'Users', Icon: UsersIcon },
+  // import.meta.env.DEV is statically replaced at build time, so Vite/Rollup constant-folds
+  // and tree-shakes this branch out of packaged (electron-forge package/make) builds entirely
+  // — not just hidden, genuinely absent from production.
+  ...(import.meta.env.DEV ? [{ view: 'audit' as const, label: 'Audit', Icon: AuditIcon }] : []),
 ];
 
 export function Sidebar({ activeView, onNavigate, collapsed, onToggleCollapsed }: SidebarProps) {

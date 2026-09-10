@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -47,7 +48,34 @@ model Admin {
   passwordHash String
   name         String
   role         AdminRole @default(ADMIN)
+  avatarUrl    String?
+  phone        String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
+
+  @@index([role])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model AppSettings {
+  id  String @id @default(uuid())
+  key String @unique @default("singleton")
+
+  appName     String  @default("Andy Tours")
+  companyName String  @default("Andy Tours")
+  logoUrl     String?
+
+  timezone             String @default("UTC")
+  dateFormat           String @default("MM/DD/YYYY")
+  timeFormat           String @default("12h")
+  language             String @default("en")
+  currency             String @default("USD")
+  fiscalYearStartMonth Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model RefreshToken {
@@ -56,6 +84,9 @@ model RefreshToken {
   tokenHash String
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([adminId, tokenHash])
+  @@index([tokenHash])
 }
 
 model Category {
@@ -88,6 +119,9 @@ model Tour {
 
   categories Category[] @relation("TourCategories")
   bookings   Booking[]
+
+  @@index([isActive])
+  @@index([createdAt])
 }
 
 model Customer {
@@ -128,6 +162,13 @@ model Booking {
   updatedAt DateTime @updatedAt
 
   payments Payment[]
+
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([tourId])
+  @@index([customerId])
+  @@index([startDate])
+  @@index([createdAt])
 }
 
 model Payment {

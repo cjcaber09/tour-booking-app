@@ -5,10 +5,11 @@ export interface StatCard {
 
 export const stats: StatCard[] = [
   { label: 'Total Bookings', value: '1,284' },
-  { label: 'Revenue (This Month)', value: '$48,200' },
   { label: 'Upcoming Tours', value: '12' },
   { label: 'Cancellations', value: '7' },
 ];
+
+export const revenueThisMonth = 48200;
 
 export interface TrendPoint {
   day: string;

@@ -15,6 +15,7 @@ import {
 import { BookingForm } from './BookingForm';
 import { BookingView } from './BookingView';
 import { useAuth } from '../../AuthContext';
+import { useAppSettings } from '../../AppSettingsContext';
 import { toast } from '../../toast';
 import { LoadingOverlay } from '../../LoadingOverlay';
 import { ConfirmDialog } from '../../ConfirmDialog';
@@ -65,13 +66,17 @@ function isSameCalendarDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-function formatDateRange(startDate: string, finishDate: string): { rangeText: string; singleDay: boolean } {
+function formatDateRange(
+  startDate: string,
+  finishDate: string,
+  formatDate: (input: string) => string,
+): { rangeText: string; singleDay: boolean } {
   const start = new Date(startDate);
   const finish = new Date(finishDate);
   if (isSameCalendarDay(start, finish)) {
-    return { rangeText: start.toLocaleDateString(), singleDay: true };
+    return { rangeText: formatDate(startDate), singleDay: true };
   }
-  return { rangeText: `${start.toLocaleDateString()} – ${finish.toLocaleDateString()}`, singleDay: false };
+  return { rangeText: `${formatDate(startDate)} – ${formatDate(finishDate)}`, singleDay: false };
 }
 
 const STATUS_BORDER_CLASS: Record<BookingStatus, string> = {
@@ -217,6 +222,7 @@ function RowActionsMenu({
 
 export function Bookings() {
   const { session } = useAuth();
+  const { formatCurrency, formatDate } = useAppSettings();
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
   const [panelKey, setPanelKey] = useState(0);
   const [rowLoadingId, setRowLoadingId] = useState<string | null>(null);
@@ -495,7 +501,7 @@ export function Bookings() {
     const paid = Number(booking.amountPaid);
     const totalPrice = Number(booking.totalPrice);
     const paidPct = totalPrice > 0 ? Math.min(100, Math.round((paid / totalPrice) * 100)) : 0;
-    const { rangeText, singleDay } = formatDateRange(booking.startDate, booking.finishDate);
+    const { rangeText, singleDay } = formatDateRange(booking.startDate, booking.finishDate, formatDate);
     const { primary, overflow } = getRowActions(booking, {
       onView: (b) => handleViewClick(b.id),
       onEdit: (b) => handleEditClick(b.id),
@@ -601,8 +607,8 @@ export function Bookings() {
                               <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
                                 <div className="flex min-w-28 flex-col gap-1.5">
                                   <span>
-                                    <span className="font-semibold text-heading">${paid.toFixed(2)}</span>
-                                    <span className="text-muted"> / ${totalPrice.toFixed(2)}</span>
+                                    <span className="font-semibold text-heading">{formatCurrency(paid)}</span>
+                                    <span className="text-muted"> / {formatCurrency(totalPrice)}</span>
                                   </span>
                                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
                                     <div className="h-full rounded-full bg-confirmed" style={{ width: `${paidPct}%` }} />
@@ -621,7 +627,7 @@ export function Bookings() {
                                   </span>
                                   {booking.cancelledAt && (
                                     <span className="text-xs text-muted">
-                                      Cancelled {new Date(booking.cancelledAt).toLocaleDateString()}
+                                      Cancelled {formatDate(booking.cancelledAt)}
                                     </span>
                                   )}
                                 </div>
@@ -667,7 +673,7 @@ export function Bookings() {
                               </span>
                               {booking.cancelledAt && (
                                 <span className="text-xs text-muted">
-                                  Cancelled {new Date(booking.cancelledAt).toLocaleDateString()}
+                                  Cancelled {formatDate(booking.cancelledAt)}
                                 </span>
                               )}
                             </div>
@@ -772,7 +778,7 @@ export function Bookings() {
           title="Cancel booking"
           message={
             Number(confirmPendingCancel.amountPaid) > 0
-              ? `Cancel ${confirmPendingCancel.reference}? This was never confirmed, so the $${Number(confirmPendingCancel.amountPaid).toFixed(2)} paid so far will be marked as fully refunded.`
+              ? `Cancel ${confirmPendingCancel.reference}? This was never confirmed, so the ${formatCurrency(confirmPendingCancel.amountPaid)} paid so far will be marked as fully refunded.`
               : `Cancel ${confirmPendingCancel.reference}? This cannot be undone.`
           }
           confirmLabel="Cancel booking"

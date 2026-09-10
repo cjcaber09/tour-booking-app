@@ -14,6 +14,7 @@ import {
 import { TourForm } from './TourForm';
 import { TourView } from './TourView';
 import { useAuth } from '../../AuthContext';
+import { useAppSettings } from '../../AppSettingsContext';
 import { toast } from '../../toast';
 import { LoadingOverlay } from '../../LoadingOverlay';
 import { ConfirmDialog } from '../../ConfirmDialog';
@@ -74,6 +75,7 @@ function getRowActions(tour: TourListItem, handlers: RowActionHandlers): { prima
 
 export function Tours() {
   const { session } = useAuth();
+  const { formatCurrency, formatDate } = useAppSettings();
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
   const [panelKey, setPanelKey] = useState(0);
   const [rowLoadingId, setRowLoadingId] = useState<string | null>(null);
@@ -325,11 +327,11 @@ export function Tours() {
                           <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
                             {discount != null ? (
                               <div className="flex items-baseline gap-2">
-                                <span className="font-semibold text-heading">${discount.toFixed(2)}</span>
-                                <span className="text-xs text-muted line-through">${price.toFixed(2)}</span>
+                                <span className="font-semibold text-heading">{formatCurrency(discount)}</span>
+                                <span className="text-xs text-muted line-through">{formatCurrency(price)}</span>
                               </div>
                             ) : (
-                              <span className="font-semibold text-heading">${price.toFixed(2)}</span>
+                              <span className="font-semibold text-heading">{formatCurrency(price)}</span>
                             )}
                           </td>
                           <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
@@ -338,7 +340,7 @@ export function Tours() {
                             </span>
                           </td>
                           <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
-                            {new Date(tour.createdAt).toLocaleDateString()}
+                            {formatDate(tour.createdAt)}
                           </td>
                           <td>
                             <div className="row-actions justify-end">

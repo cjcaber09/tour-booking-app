@@ -32,7 +32,16 @@ describe('GET /auth/me', () => {
       .set('Authorization', `Bearer ${loginRes.body.accessToken}`);
 
     expect(meRes.status).toBe(200);
-    expect(meRes.body).toEqual({ id: expect.any(String), email: testEmail, name: 'Test Admin' });
+    expect(meRes.body).toEqual({
+      id: expect.any(String),
+      email: testEmail,
+      name: 'Test Admin',
+      role: 'ADMIN',
+      avatarUrl: null,
+      phone: null,
+      createdAt: expect.any(String),
+      lastLoginAt: expect.any(String),
+    });
   });
 
   it('returns 401 with no token', async () => {

@@ -15,6 +15,14 @@ import type {
   RecordPaymentPayload,
   UploadPaymentProofResult,
   SearchCustomersResult,
+  ListAuditEntriesResult,
+  AppSettingsDto,
+  UpdateAppSettingsPayload,
+  UploadLogoResult,
+  UpdateProfilePayload,
+  ChangePasswordPayload,
+  UploadAvatarResult,
+  AdminRole,
 } from '../preload';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
@@ -23,6 +31,11 @@ export interface AdminSummary {
   id: string;
   email: string;
   name: string;
+  role: AdminRole;
+  avatarUrl: string | null;
+  phone: string | null;
+  createdAt: string;
+  lastLoginAt: string | null;
 }
 
 async function parseJsonOrThrow(res: Response): Promise<any> {
@@ -288,6 +301,13 @@ export async function backendSearchCustomers(q: string, accessToken: string): Pr
   return parseJsonOrThrow(res);
 }
 
+export async function backendListAudit(accessToken: string): Promise<ListAuditEntriesResult> {
+  const res = await fetch(`${BACKEND_URL}/audit`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
 export async function backendUploadImage(
   fileBase64: string,
   filename: string,
@@ -308,4 +328,96 @@ export async function backendUploadImage(
     throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
   }
   return body;
+}
+
+export async function backendGetSettings(accessToken: string): Promise<AppSettingsDto> {
+  const res = await fetch(`${BACKEND_URL}/settings`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendUpdateSettings(
+  payload: UpdateAppSettingsPayload,
+  accessToken: string,
+): Promise<AppSettingsDto> {
+  const res = await fetch(`${BACKEND_URL}/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendUploadLogo(
+  fileBase64: string,
+  filename: string,
+  mimetype: string,
+  accessToken: string,
+): Promise<UploadLogoResult> {
+  const buffer = Buffer.from(fileBase64, 'base64');
+  const formData = new FormData();
+  formData.append('logo', new Blob([buffer], { type: mimetype }), filename);
+
+  const res = await fetch(`${BACKEND_URL}/settings/upload-logo`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendUpdateProfile(payload: UpdateProfilePayload, accessToken: string): Promise<AdminSummary> {
+  const res = await fetch(`${BACKEND_URL}/profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendUploadAvatar(
+  fileBase64: string,
+  filename: string,
+  mimetype: string,
+  accessToken: string,
+): Promise<UploadAvatarResult> {
+  const buffer = Buffer.from(fileBase64, 'base64');
+  const formData = new FormData();
+  formData.append('avatar', new Blob([buffer], { type: mimetype }), filename);
+
+  const res = await fetch(`${BACKEND_URL}/profile/upload-avatar`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendChangePassword(payload: ChangePasswordPayload, accessToken: string): Promise<void> {
+  const res = await fetch(`${BACKEND_URL}/profile/change-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.json();
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
 }

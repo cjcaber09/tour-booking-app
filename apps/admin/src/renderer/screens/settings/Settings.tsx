@@ -1,13 +1,25 @@
 import { useState } from 'react';
 import { AppearanceTab } from './AppearanceTab';
+import { GeneralTab } from './GeneralTab';
+import { ProfileTab } from './ProfileTab';
+import { SecurityTab } from './SecurityTab';
+import { useAuth } from '../../AuthContext';
 import { cn } from '../../lib/utils';
 
-type SettingsTab = 'appearance';
-
-const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [{ id: 'appearance', label: 'Appearance' }];
+type SettingsTab = 'profile' | 'security' | 'general' | 'appearance';
 
 export function Settings() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
+  const { session } = useAuth();
+  const isAdmin = session?.admin.role === 'ADMIN';
+
+  const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
+    { id: 'profile', label: 'Profile' },
+    { id: 'security', label: 'Security' },
+    ...(isAdmin ? [{ id: 'general' as const, label: 'General' }] : []),
+    { id: 'appearance', label: 'Appearance' },
+  ];
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
 
   return (
     <div className="p-8">
@@ -23,7 +35,12 @@ export function Settings() {
           </button>
         ))}
       </div>
-      <div className="max-w-[480px]">{activeTab === 'appearance' && <AppearanceTab />}</div>
+      <div className="max-w-[640px]">
+        {activeTab === 'profile' && <ProfileTab />}
+        {activeTab === 'security' && <SecurityTab />}
+        {activeTab === 'general' && isAdmin && <GeneralTab />}
+        {activeTab === 'appearance' && <AppearanceTab />}
+      </div>
     </div>
   );
 }

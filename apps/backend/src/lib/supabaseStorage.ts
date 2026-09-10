@@ -40,6 +40,14 @@ export function uploadPaymentProof(buffer: Buffer, filename: string, mimetype: s
   return uploadToBucket('payments', buffer, filename, mimetype);
 }
 
+export function uploadLogo(buffer: Buffer, filename: string, mimetype: string): Promise<string> {
+  return uploadToBucket('settings', buffer, filename, mimetype);
+}
+
+export function uploadAvatar(buffer: Buffer, filename: string, mimetype: string): Promise<string> {
+  return uploadToBucket('avatars', buffer, filename, mimetype);
+}
+
 function extractStoragePath(signedUrl: string): string | null {
   const marker = `/object/sign/${BUCKET}/`;
   const idx = signedUrl.indexOf(marker);

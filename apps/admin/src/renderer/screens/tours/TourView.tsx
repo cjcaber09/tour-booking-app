@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { ImageLightbox } from '../../ImageLightbox';
 import { Button } from '../../components/ui/button';
+import { useAppSettings } from '../../AppSettingsContext';
 import type { TourDetail } from '../../../preload';
 
 interface TourViewProps {
@@ -10,6 +11,7 @@ interface TourViewProps {
 }
 
 export function TourView({ tour, onBack }: TourViewProps) {
+  const { formatCurrency } = useAppSettings();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   return (
@@ -35,13 +37,13 @@ export function TourView({ tour, onBack }: TourViewProps) {
 
         <div className="detail-field">
           <span className="detail-label">Price</span>
-          <span>${Number(tour.price).toFixed(2)}</span>
+          <span>{formatCurrency(tour.price)}</span>
         </div>
 
         {tour.priceDiscount != null && (
           <div className="detail-field">
             <span className="detail-label">Price discount</span>
-            <span>${Number(tour.priceDiscount).toFixed(2)}</span>
+            <span>{formatCurrency(tour.priceDiscount)}</span>
           </div>
         )}
 
