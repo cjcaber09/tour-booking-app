@@ -55,9 +55,20 @@ const createWindow = () => {
   mainWindow.webContents.openDevTools();
 
   // Without this, target="_blank" links (e.g. a payment-proof "View proof" link)
-  // silently no-op instead of opening in the OS's default browser.
+  // silently no-op instead of opening in the OS's default browser. Restricted to
+  // http(s) so a malicious or malformed URL can't reach shell.openExternal with a
+  // scheme (file:, custom protocol handlers, etc.) that could trigger unintended
+  // OS-level behavior.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return { action: 'deny' };
+    }
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+      shell.openExternal(url);
+    }
     return { action: 'deny' };
   });
 };
