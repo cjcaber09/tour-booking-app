@@ -92,4 +92,56 @@ describe('GET /bookings/:id', () => {
     },
     DB_HEAVY_TEST_TIMEOUT,
   );
+
+  it(
+    'auto-completes a CONFIRMED booking past its finish date once fully paid',
+    async () => {
+      const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      const booking = await prisma.booking.create({
+        data: {
+          reference: `BK-GETTEST-PAID${Date.now()}`,
+          tourId,
+          customerId,
+          participants: 1,
+          startDate: tenDaysAgo,
+          totalPrice: 100,
+          amountPaid: 100,
+          paymentStatus: 'PAID',
+          status: 'CONFIRMED',
+        },
+      });
+      createdBookingIds.push(booking.id);
+
+      const res = await request(app).get(`/bookings/${booking.id}`).set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('COMPLETED');
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'leaves a CONFIRMED booking past its finish date unchanged when only partially paid',
+    async () => {
+      const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      const booking = await prisma.booking.create({
+        data: {
+          reference: `BK-GETTEST-PARTIAL${Date.now()}`,
+          tourId,
+          customerId,
+          participants: 1,
+          startDate: tenDaysAgo,
+          totalPrice: 100,
+          amountPaid: 50,
+          paymentStatus: 'PARTIAL',
+          status: 'CONFIRMED',
+        },
+      });
+      createdBookingIds.push(booking.id);
+
+      const res = await request(app).get(`/bookings/${booking.id}`).set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('CONFIRMED');
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
 });

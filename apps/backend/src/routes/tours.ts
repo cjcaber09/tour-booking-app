@@ -1,18 +1,13 @@
 import { Router } from 'express';
-import multer from 'multer';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
 import { createTourSchema, updateTourSchema, listToursQuerySchema } from './tours.schema';
 import { generateUniqueSlug } from '../lib/slug';
 import { uploadTourImage, deleteTourImages } from '../lib/supabaseStorage';
+import { upload } from '../lib/upload';
 
 export const toursRouter = Router();
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
-});
 
 const ALLOWED_IMAGE_MIMETYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 

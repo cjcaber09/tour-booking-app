@@ -14,12 +14,12 @@ function sanitizeFilename(filename: string): string {
   return sanitized || 'image';
 }
 
-export async function uploadTourImage(buffer: Buffer, filename: string, mimetype: string): Promise<string> {
-  const path = `tours/${crypto.randomUUID()}-${sanitizeFilename(filename)}`;
+async function uploadToBucket(prefix: string, buffer: Buffer, filename: string, mimetype: string): Promise<string> {
+  const path = `${prefix}/${crypto.randomUUID()}-${sanitizeFilename(filename)}`;
 
   const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, buffer, { contentType: mimetype });
   if (uploadError) {
-    throw new Error(`failed to upload image: ${uploadError.message}`);
+    throw new Error(`failed to upload file: ${uploadError.message}`);
   }
 
   const { data, error: signError } = await supabase.storage
@@ -30,6 +30,14 @@ export async function uploadTourImage(buffer: Buffer, filename: string, mimetype
   }
 
   return data.signedUrl;
+}
+
+export function uploadTourImage(buffer: Buffer, filename: string, mimetype: string): Promise<string> {
+  return uploadToBucket('tours', buffer, filename, mimetype);
+}
+
+export function uploadPaymentProof(buffer: Buffer, filename: string, mimetype: string): Promise<string> {
+  return uploadToBucket('payments', buffer, filename, mimetype);
 }
 
 function extractStoragePath(signedUrl: string): string | null {

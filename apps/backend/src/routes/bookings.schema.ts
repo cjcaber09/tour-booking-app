@@ -54,10 +54,22 @@ export const cancelBookingSchema = z.object({
 
 export type CancelBookingInput = z.infer<typeof cancelBookingSchema>;
 
+export const recordPaymentSchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('CASH'), amount: z.number().positive() }),
+  z.object({
+    method: z.literal('INVOICE_REFERENCE'),
+    amount: z.number().positive(),
+    invoiceReference: z.string().trim().min(1),
+  }),
+  z.object({ method: z.literal('FILE'), amount: z.number().positive(), proofUrl: z.string().min(1) }),
+]);
+
+export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
+
 export const listBookingsQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(10),
-  status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED']).optional(),
+  status: z.enum(['PENDING', 'CONFIRMED', 'ONGOING', 'COMPLETED', 'CANCELLED']).optional(),
   paymentStatus: z.enum(['UNPAID', 'PARTIAL', 'PAID', 'REFUNDED']).optional(),
   tourId: z.string().uuid().optional(),
   customerId: z.string().uuid().optional(),

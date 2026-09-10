@@ -182,6 +182,50 @@ describe('POST /bookings/:id/cancel', () => {
   );
 
   it(
+    'rejects cancelling a fully paid booking once it is past its start date',
+    async () => {
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const booking = await createBooking({ startDate: yesterday, amountPaid: 100, paymentStatus: 'PAID' });
+      const res = await request(app)
+        .post(`/bookings/${booking.id}/cancel`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ refundAmount: 100 });
+      expect(res.status).toBe(409);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'allows cancelling a partially paid booking once it is past its start date',
+    async () => {
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const booking = await createBooking({ startDate: yesterday, amountPaid: 50, paymentStatus: 'PARTIAL' });
+      const res = await request(app)
+        .post(`/bookings/${booking.id}/cancel`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ refundAmount: 50 });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('CANCELLED');
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'allows cancelling an unpaid booking once it is past its start date',
+    async () => {
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const booking = await createBooking({ startDate: yesterday, amountPaid: 0, paymentStatus: 'UNPAID' });
+      const res = await request(app)
+        .post(`/bookings/${booking.id}/cancel`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ refundAmount: 0 });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('CANCELLED');
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
     'cancelling a still-PENDING booking works the same way as cancelling a CONFIRMED one',
     async () => {
       const booking = await createBooking({ status: 'PENDING', amountPaid: 30, paymentStatus: 'PARTIAL' });

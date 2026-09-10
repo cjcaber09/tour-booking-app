@@ -7,15 +7,24 @@ import {
   listBookingsQuerySchema,
   updateBookingSchema,
   cancelBookingSchema,
+  recordPaymentSchema,
 } from './bookings.schema';
 import {
   createBooking,
   bookingInclude,
+  bookingListSelect,
+  finalizeBookingList,
+  getBookingCalendarWindow,
   BookingServiceError,
   resolveCustomer,
   computeTotalPrice,
   derivePaymentStatus,
+  serializeBooking,
+  autoCompleteIfDue,
+  todayIsPastOrEqualStartDate,
 } from '../lib/bookings';
+import { upload } from '../lib/upload';
+import { uploadPaymentProof } from '../lib/supabaseStorage';
 
 export const bookingsRouter = Router();
 
@@ -46,35 +55,42 @@ bookingsRouter.get('/', requireAuth, async (req, res, next) => {
         : {}),
     };
 
-    const [bookings, total] = await Promise.all([
+    const [rawBookings, total] = await Promise.all([
       prisma.booking.findMany({
         where,
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
         skip,
         take: limit,
-        select: {
-          id: true,
-          reference: true,
-          status: true,
-          paymentStatus: true,
-          participants: true,
-          startDate: true,
-          totalPrice: true,
-          amountPaid: true,
-          createdAt: true,
-          tour: { select: { id: true, title: true } },
-          customer: { select: { id: true, name: true, email: true } },
-        },
+        select: bookingListSelect,
       }),
       prisma.booking.count({ where }),
     ]);
 
     res.json({
-      bookings,
+      bookings: await finalizeBookingList(rawBookings),
       total,
       page,
       limit,
       totalPages: Math.max(1, Math.ceil(total / limit)),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+bookingsRouter.get('/calendar', requireAuth, async (req, res, next) => {
+  try {
+    const { from, to } = getBookingCalendarWindow();
+    const rawBookings = await prisma.booking.findMany({
+      where: { startDate: { gte: from, lte: to } },
+      orderBy: { startDate: 'asc' },
+      select: bookingListSelect,
+    });
+
+    res.json({
+      bookings: await finalizeBookingList(rawBookings),
+      from: from.toISOString(),
+      to: to.toISOString(),
     });
   } catch (err) {
     next(err);
@@ -91,7 +107,7 @@ bookingsRouter.get('/:id', requireAuth, async (req, res, next) => {
       res.status(404).json({ error: 'booking not found' });
       return;
     }
-    res.json(booking);
+    res.json(serializeBooking(await autoCompleteIfDue(booking)));
   } catch (err) {
     next(err);
   }
@@ -116,7 +132,7 @@ bookingsRouter.post('/', requireAuth, async (req, res, next) => {
       status: 'CONFIRMED',
     });
 
-    res.status(201).json(booking);
+    res.status(201).json(serializeBooking(booking));
   } catch (err) {
     if (err instanceof BookingServiceError) {
       res.status(err.status).json({ error: err.message });
@@ -145,6 +161,18 @@ bookingsRouter.patch('/:id', requireAuth, async (req, res, next) => {
     }
 
     const { tourId, customerId, customer, participants, startDate, amountPaid, notes } = parsed.data;
+
+    // amountPaid-only bodies (Record Payment) are always allowed; anything that touches
+    // the booking's actual details is blocked once the tour is due, ongoing, or completed.
+    const isFullEdit = [tourId, customerId, customer, participants, startDate, notes].some((v) => v !== undefined);
+    const isLocked =
+      existing.status === 'ONGOING' ||
+      existing.status === 'COMPLETED' ||
+      (existing.status === 'CONFIRMED' && todayIsPastOrEqualStartDate(existing.startDate));
+    if (isFullEdit && isLocked) {
+      res.status(409).json({ error: 'cannot edit a booking once it is due, ongoing, or completed' });
+      return;
+    }
 
     let totalPrice = existing.totalPrice;
     if (tourId !== undefined || participants !== undefined) {
@@ -177,7 +205,7 @@ bookingsRouter.patch('/:id', requireAuth, async (req, res, next) => {
       include: bookingInclude,
     });
 
-    res.json(booking);
+    res.json(serializeBooking(booking));
   } catch (err) {
     if (err instanceof BookingServiceError) {
       res.status(err.status).json({ error: err.message });
@@ -208,7 +236,105 @@ bookingsRouter.post('/:id/confirm', requireAuth, async (req, res, next) => {
       data: { status: 'CONFIRMED' },
       include: bookingInclude,
     });
-    res.json(booking);
+    res.json(serializeBooking(booking));
+  } catch (err) {
+    next(err);
+  }
+});
+
+bookingsRouter.post('/:id/ongoing', requireAuth, async (req, res, next) => {
+  try {
+    const existing = await prisma.booking.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      res.status(404).json({ error: 'booking not found' });
+      return;
+    }
+    if (existing.status !== 'CONFIRMED') {
+      res.status(409).json({ error: 'booking is not confirmed' });
+      return;
+    }
+    if (!todayIsPastOrEqualStartDate(existing.startDate)) {
+      res.status(409).json({ error: 'booking has not reached its start date' });
+      return;
+    }
+
+    const booking = await prisma.booking.update({
+      where: { id: req.params.id },
+      data: { status: 'ONGOING' },
+      include: bookingInclude,
+    });
+    res.json(serializeBooking(booking));
+  } catch (err) {
+    next(err);
+  }
+});
+
+const ALLOWED_PAYMENT_PROOF_MIMETYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+
+bookingsRouter.post(
+  '/:id/payments/upload-proof',
+  requireAuth,
+  upload.single('proof'),
+  async (req, res, next) => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ error: 'proof file is required' });
+        return;
+      }
+      if (!ALLOWED_PAYMENT_PROOF_MIMETYPES.includes(req.file.mimetype)) {
+        res.status(400).json({ error: 'unsupported file type' });
+        return;
+      }
+      const url = await uploadPaymentProof(req.file.buffer, req.file.originalname, req.file.mimetype);
+      res.status(201).json({ url });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+bookingsRouter.post('/:id/payments', requireAuth, async (req, res, next) => {
+  try {
+    const parsed = recordPaymentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation failed', details: parsed.error.flatten().fieldErrors });
+      return;
+    }
+
+    const existing = await prisma.booking.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      res.status(404).json({ error: 'booking not found' });
+      return;
+    }
+    if (existing.status === 'CANCELLED') {
+      res.status(409).json({ error: 'cannot record a payment on a cancelled booking' });
+      return;
+    }
+
+    const newAmountPaid = new Prisma.Decimal(existing.amountPaid).add(parsed.data.amount);
+    if (newAmountPaid.gt(new Prisma.Decimal(existing.totalPrice))) {
+      res.status(400).json({ error: 'amount cannot exceed the remaining balance' });
+      return;
+    }
+
+    const { method } = parsed.data;
+    const [, booking] = await prisma.$transaction([
+      prisma.payment.create({
+        data: {
+          bookingId: existing.id,
+          amount: parsed.data.amount,
+          method,
+          invoiceReference: method === 'INVOICE_REFERENCE' ? parsed.data.invoiceReference : null,
+          proofUrl: method === 'FILE' ? parsed.data.proofUrl : null,
+        },
+      }),
+      prisma.booking.update({
+        where: { id: existing.id },
+        data: { amountPaid: newAmountPaid, paymentStatus: derivePaymentStatus(newAmountPaid, existing.totalPrice) },
+        include: bookingInclude,
+      }),
+    ]);
+    res.status(201).json(serializeBooking(booking));
   } catch (err) {
     next(err);
   }
@@ -231,6 +357,14 @@ bookingsRouter.post('/:id/cancel', requireAuth, async (req, res, next) => {
       res.status(409).json({ error: 'booking is already cancelled' });
       return;
     }
+    const isLocked =
+      existing.status === 'ONGOING' ||
+      existing.status === 'COMPLETED' ||
+      (existing.status === 'CONFIRMED' && todayIsPastOrEqualStartDate(existing.startDate));
+    if (isLocked && existing.paymentStatus === 'PAID') {
+      res.status(409).json({ error: 'booking cannot be cancelled once it is due, ongoing, or completed' });
+      return;
+    }
     if (parsed.data.refundAmount > Number(existing.amountPaid)) {
       res.status(400).json({ error: 'refundAmount cannot exceed amountPaid' });
       return;
@@ -246,7 +380,7 @@ bookingsRouter.post('/:id/cancel', requireAuth, async (req, res, next) => {
       },
       include: bookingInclude,
     });
-    res.json(booking);
+    res.json(serializeBooking(booking));
   } catch (err) {
     next(err);
   }

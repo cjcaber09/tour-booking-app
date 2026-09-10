@@ -23,6 +23,8 @@ enum AdminRole {
 enum BookingStatus {
   PENDING
   CONFIRMED
+  ONGOING
+  COMPLETED
   CANCELLED
 }
 
@@ -31,6 +33,12 @@ enum PaymentStatus {
   PARTIAL
   PAID
   REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  INVOICE_REFERENCE
+  FILE
 }
 
 model Admin {
@@ -118,4 +126,19 @@ model Booking {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  payments Payment[]
+}
+
+model Payment {
+  id        String @id @default(uuid())
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  amount           Decimal       @db.Decimal(10, 2)
+  method           PaymentMethod
+  invoiceReference String?
+  proofUrl         String?
+
+  createdAt DateTime @default(now())
 }
