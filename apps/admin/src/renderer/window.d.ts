@@ -16,6 +16,14 @@ import type {
   RecordPaymentPayload,
   UploadPaymentProofResult,
   SearchCustomersResult,
+  ListAuditEntriesResult,
+  AppSettingsDto,
+  UpdateAppSettingsPayload,
+  UploadLogoResult,
+  AdminSummary,
+  UpdateProfilePayload,
+  ChangePasswordPayload,
+  UploadAvatarResult,
 } from '../preload';
 
 declare global {
@@ -67,6 +75,29 @@ declare global {
     };
     customersAPI: {
       search: (q: string, accessToken: string) => Promise<SearchCustomersResult>;
+    };
+    auditAPI: {
+      list: (accessToken: string) => Promise<ListAuditEntriesResult>;
+    };
+    settingsAPI: {
+      get: (accessToken: string) => Promise<AppSettingsDto>;
+      update: (payload: UpdateAppSettingsPayload, accessToken: string) => Promise<AppSettingsDto>;
+      uploadLogo: (
+        fileBase64: string,
+        filename: string,
+        mimetype: string,
+        accessToken: string,
+      ) => Promise<UploadLogoResult>;
+    };
+    profileAPI: {
+      update: (payload: UpdateProfilePayload, accessToken: string) => Promise<AdminSummary>;
+      uploadAvatar: (
+        fileBase64: string,
+        filename: string,
+        mimetype: string,
+        accessToken: string,
+      ) => Promise<UploadAvatarResult>;
+      changePassword: (payload: ChangePasswordPayload, accessToken: string) => Promise<void>;
     };
   }
 }

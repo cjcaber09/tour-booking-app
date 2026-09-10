@@ -25,17 +25,27 @@ authRouter.post('/login', async (req, res, next) => {
       res.status(401).json({ error: 'invalid credentials' });
       return;
     }
+    if (!admin.isActive) {
+      res.status(403).json({ error: 'account is suspended' });
+      return;
+    }
 
     const accessToken = signAccessToken({ adminId: admin.id });
     const refreshToken = signRefreshToken(admin.id);
 
-    await prisma.refreshToken.create({
-      data: {
-        adminId: admin.id,
-        tokenHash: hashToken(refreshToken),
-        expiresAt: refreshTokenExpiryDate(),
-      },
-    });
+    // Independent writes with no data dependency on each other, run concurrently
+    // rather than sequentially — same round-trip-minimizing pattern used in
+    // lib/bookings.ts's createBooking.
+    await Promise.all([
+      prisma.refreshToken.create({
+        data: {
+          adminId: admin.id,
+          tokenHash: hashToken(refreshToken),
+          expiresAt: refreshTokenExpiryDate(),
+        },
+      }),
+      prisma.admin.update({ where: { id: admin.id }, data: { lastLoginAt: new Date() } }),
+    ]);
 
     res.json({ accessToken, refreshToken });
   } catch (err) {
@@ -63,6 +73,13 @@ authRouter.post('/refresh', async (req, res, next) => {
       where: { adminId, tokenHash: hashToken(refreshToken) },
     });
     if (!stored || stored.expiresAt < new Date()) {
+      res.status(401).json({ error: 'invalid refresh token' });
+      return;
+    }
+
+    const admin = await prisma.admin.findUnique({ where: { id: adminId }, select: { isActive: true } });
+    if (!admin?.isActive) {
+      await prisma.refreshToken.delete({ where: { id: stored.id } });
       res.status(401).json({ error: 'invalid refresh token' });
       return;
     }
@@ -95,7 +112,16 @@ authRouter.get('/me', requireAuth, async (req, res, next) => {
       res.status(401).json({ error: 'invalid session' });
       return;
     }
-    res.json({ id: admin.id, email: admin.email, name: admin.name });
+    res.json({
+      id: admin.id,
+      email: admin.email,
+      name: admin.name,
+      role: admin.role,
+      avatarUrl: admin.avatarUrl,
+      phone: admin.phone,
+      createdAt: admin.createdAt,
+      lastLoginAt: admin.lastLoginAt,
+    });
   } catch (err) {
     next(err);
   }

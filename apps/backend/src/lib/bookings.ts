@@ -175,9 +175,14 @@ export interface CreateBookingParams {
 }
 
 export async function createBooking(params: CreateBookingParams) {
-  const { tour, totalPrice } = await computeTotalPrice(params.tourId, params.participants, params.requireActiveTour);
-  const customer = await resolveCustomer(params.customerInput);
-  const reference = await generateUniqueBookingReference();
+  // These three round trips touch independent tables (Tour, Customer, Booking-by-reference)
+  // with no data dependency on each other, so they're run concurrently rather than
+  // sequentially — each one otherwise pays full round-trip latency to the DB on its own.
+  const [{ tour, totalPrice }, customer, reference] = await Promise.all([
+    computeTotalPrice(params.tourId, params.participants, params.requireActiveTour),
+    resolveCustomer(params.customerInput),
+    generateUniqueBookingReference(),
+  ]);
 
   return prisma.booking.create({
     data: {

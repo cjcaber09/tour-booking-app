@@ -1,14 +1,27 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Pencil, Trash2, PauseCircle, PlayCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Trash2,
+  PauseCircle,
+  PlayCircle,
+  Eye,
+  Search,
+  EllipsisVertical,
+  type LucideProps,
+} from 'lucide-react';
 import { TourForm } from './TourForm';
 import { TourView } from './TourView';
 import { useAuth } from '../../AuthContext';
+import { useAppSettings } from '../../AppSettingsContext';
 import { toast } from '../../toast';
 import { LoadingOverlay } from '../../LoadingOverlay';
 import { ConfirmDialog } from '../../ConfirmDialog';
 import type { TourListItem, TourDetail } from '../../../preload';
 import { cn } from '../../lib/utils';
 import { Button } from '../../components/ui/button';
+import { Popover, PopoverTrigger, PopoverContent } from '../../components/ui/popover';
 
 type Mode =
   | { kind: 'idle' }
@@ -23,8 +36,46 @@ function cleanIpcErrorMessage(message: string): string {
     .replace(/^Error:\s*/, '');
 }
 
+type StatusTabKey = 'ALL' | 'ACTIVE' | 'INACTIVE';
+
+const STATUS_TABS: { key: StatusTabKey; label: string }[] = [
+  { key: 'ALL', label: 'All' },
+  { key: 'ACTIVE', label: 'Active' },
+  { key: 'INACTIVE', label: 'Inactive' },
+];
+
+interface RowAction {
+  key: string;
+  label: string;
+  Icon: ComponentType<LucideProps>;
+  onClick: () => void;
+  danger?: boolean;
+}
+
+interface RowActionHandlers {
+  onView: (tour: TourListItem) => void;
+  onEdit: (tour: TourListItem) => void;
+  onSuspendToggle: (tour: TourListItem) => void;
+  onDelete: (tour: TourListItem) => void;
+}
+
+function getRowActions(tour: TourListItem, handlers: RowActionHandlers): { primary: RowAction; overflow: RowAction[] } {
+  const primary: RowAction = tour.isActive
+    ? { key: 'suspend', label: 'Suspend', Icon: PauseCircle, onClick: () => handlers.onSuspendToggle(tour) }
+    : { key: 'activate', label: 'Activate', Icon: PlayCircle, onClick: () => handlers.onSuspendToggle(tour) };
+
+  const overflow: RowAction[] = [
+    { key: 'view', label: 'View', Icon: Eye, onClick: () => handlers.onView(tour) },
+    { key: 'edit', label: 'Edit', Icon: Pencil, onClick: () => handlers.onEdit(tour) },
+    { key: 'delete', label: 'Delete', Icon: Trash2, onClick: () => handlers.onDelete(tour), danger: true },
+  ];
+
+  return { primary, overflow };
+}
+
 export function Tours() {
   const { session } = useAuth();
+  const { formatCurrency, formatDate } = useAppSettings();
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
   const [panelKey, setPanelKey] = useState(0);
   const [rowLoadingId, setRowLoadingId] = useState<string | null>(null);
@@ -35,6 +86,27 @@ export function Tours() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusTabKey>('ALL');
+
+  const statusCounts = useMemo(
+    () => ({
+      ALL: tours.length,
+      ACTIVE: tours.filter((t) => t.isActive).length,
+      INACTIVE: tours.filter((t) => !t.isActive).length,
+    }),
+    [tours],
+  );
+
+  const filteredTours = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return tours.filter((tour) => {
+      if (statusFilter === 'ACTIVE' && !tour.isActive) return false;
+      if (statusFilter === 'INACTIVE' && tour.isActive) return false;
+      if (!q) return true;
+      return tour.title.toLowerCase().includes(q) || tour.slug.toLowerCase().includes(q);
+    });
+  }, [tours, search, statusFilter]);
 
   const fetchTours = useCallback(
     async (targetPage: number) => {
@@ -174,72 +246,153 @@ export function Tours() {
 
         {total > 0 && (
           <>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+              <div className="relative w-full max-w-xs">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                <input
+                  type="text"
+                  className="neu-field py-2.5 pl-9"
+                  placeholder="Search title or slug"
+                  aria-label="Search tours"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-1" role="tablist" aria-label="Filter tours by status">
+                {STATUS_TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={statusFilter === tab.key}
+                    className={cn('tab-button', statusFilter === tab.key && 'tab-button-active')}
+                    onClick={() => setStatusFilter(tab.key)}
+                  >
+                    {tab.label} ({statusCounts[tab.key]})
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="table-container">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th aria-hidden="true"></th>
-                    <th>Title</th>
-                    <th>Price</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                    <th aria-hidden="true"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tours.map((tour) => (
-                    <tr key={tour.id}>
-                      <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
-                        {tour.imageCover ? (
-                          <img className="block h-9 w-12 rounded-lg object-cover" src={tour.imageCover} alt="" />
-                        ) : (
-                          <div className="h-9 w-12 rounded-lg bg-[var(--color-shadow-dark)] opacity-40" />
-                        )}
-                      </td>
-                      <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
-                        {tour.title}
-                      </td>
-                      <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
-                        ${Number(tour.price).toFixed(2)}
-                      </td>
-                      <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
-                        <span className={`status-badge ${tour.isActive ? 'status-confirmed' : 'status-cancelled'}`}>
-                          {tour.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
-                        {new Date(tour.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="row-actions">
-                        <Button
-                          className="action-button"
-                          onClick={() => handleEditClick(tour.id)}
-                          disabled={rowLoadingId === tour.id}
-                        >
-                          <Pencil size={14} />
-                          Edit
-                        </Button>
-                        <Button
-                          className="action-button"
-                          onClick={() => handleSuspendToggle(tour)}
-                          disabled={rowLoadingId === tour.id}
-                        >
-                          {tour.isActive ? <PauseCircle size={14} /> : <PlayCircle size={14} />}
-                          {tour.isActive ? 'Suspend' : 'Activate'}
-                        </Button>
-                        <Button
-                          className="action-button danger-text"
-                          onClick={() => handleDeleteClick(tour)}
-                          disabled={rowLoadingId === tour.id}
-                        >
-                          <Trash2 size={14} />
-                          Delete
-                        </Button>
-                      </td>
+              {filteredTours.length === 0 ? (
+                <p className="status-message m-0">No tours match your search.</p>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Tour</th>
+                      <th>Price</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                      <th>
+                        <span className="sr-only">Actions</span>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredTours.map((tour) => {
+                      const isRowLoading = rowLoadingId === tour.id;
+                      const price = Number(tour.price);
+                      const discount = tour.priceDiscount != null ? Number(tour.priceDiscount) : null;
+                      const { primary, overflow } = getRowActions(tour, {
+                        onView: (t) => handleViewClick(t.id),
+                        onEdit: (t) => handleEditClick(t.id),
+                        onSuspendToggle: handleSuspendToggle,
+                        onDelete: handleDeleteClick,
+                      });
+
+                      return (
+                        <tr
+                          key={tour.id}
+                          className={cn('border-l-4', tour.isActive ? 'border-confirmed' : 'border-cancelled')}
+                        >
+                          <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
+                            <div className="flex items-center gap-3">
+                              {tour.imageCover ? (
+                                <img
+                                  className="block h-9 w-12 shrink-0 rounded-lg object-cover"
+                                  src={tour.imageCover}
+                                  alt=""
+                                />
+                              ) : (
+                                <div className="h-9 w-12 shrink-0 rounded-lg bg-[var(--color-shadow-dark)] opacity-40" />
+                              )}
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-semibold text-heading">{tour.title}</span>
+                                <span className="text-xs text-muted">{tour.slug}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
+                            {discount != null ? (
+                              <div className="flex items-baseline gap-2">
+                                <span className="font-semibold text-heading">{formatCurrency(discount)}</span>
+                                <span className="text-xs text-muted line-through">{formatCurrency(price)}</span>
+                              </div>
+                            ) : (
+                              <span className="font-semibold text-heading">{formatCurrency(price)}</span>
+                            )}
+                          </td>
+                          <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
+                            <span className={`status-badge ${tour.isActive ? 'status-confirmed' : 'status-cancelled'}`}>
+                              {tour.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
+                            {formatDate(tour.createdAt)}
+                          </td>
+                          <td>
+                            <div className="row-actions justify-end">
+                              <Button
+                                size="sm"
+                                className="action-button"
+                                onClick={primary.onClick}
+                                disabled={isRowLoading}
+                              >
+                                <primary.Icon size={14} />
+                                {primary.label}
+                              </Button>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={isRowLoading}
+                                    aria-label={`More actions for ${tour.title}`}
+                                  >
+                                    <EllipsisVertical size={16} />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent align="end" className="w-44 p-1">
+                                  <div role="menu" className="flex flex-col">
+                                    {overflow.map((action) => (
+                                      <button
+                                        key={action.key}
+                                        type="button"
+                                        role="menuitem"
+                                        disabled={isRowLoading}
+                                        className={cn(
+                                          'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-heading hover:bg-sidebar-hover disabled:cursor-not-allowed disabled:opacity-60',
+                                          action.danger && 'text-error',
+                                        )}
+                                        onClick={action.onClick}
+                                      >
+                                        <action.Icon size={14} />
+                                        {action.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
 
             {totalPages > 1 && (

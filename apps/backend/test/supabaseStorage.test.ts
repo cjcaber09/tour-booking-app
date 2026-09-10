@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
-import { uploadTourImage } from '../src/lib/supabaseStorage';
+import { uploadTourImage, uploadLogo, uploadAvatar } from '../src/lib/supabaseStorage';
 
 const BUCKET = 'andy_booking';
 const DB_HEAVY_TEST_TIMEOUT = 15000;
@@ -55,6 +55,48 @@ describe('uploadTourImage', () => {
       expect(path.endsWith('.png')).toBe(true);
       expect(path).toBe(path.toLowerCase());
       expect(path).not.toMatch(/[ !]/);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+});
+
+describe('uploadLogo', () => {
+  it(
+    'uploads a buffer into the settings/ prefix and returns a signed url',
+    async () => {
+      const buffer = Buffer.from('fake-logo-bytes-for-testing');
+
+      const url = await uploadLogo(buffer, 'Company Logo.png', 'image/png');
+      const path = extractStoragePath(url);
+      uploadedPaths.push(path);
+
+      expect(path.startsWith('settings/')).toBe(true);
+
+      const res = await fetch(url);
+      expect(res.status).toBe(200);
+      const body = Buffer.from(await res.arrayBuffer());
+      expect(body.equals(buffer)).toBe(true);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+});
+
+describe('uploadAvatar', () => {
+  it(
+    'uploads a buffer into the avatars/ prefix and returns a signed url',
+    async () => {
+      const buffer = Buffer.from('fake-avatar-bytes-for-testing');
+
+      const url = await uploadAvatar(buffer, 'Profile Pic.jpg', 'image/jpeg');
+      const path = extractStoragePath(url);
+      uploadedPaths.push(path);
+
+      expect(path.startsWith('avatars/')).toBe(true);
+
+      const res = await fetch(url);
+      expect(res.status).toBe(200);
+      const body = Buffer.from(await res.arrayBuffer());
+      expect(body.equals(buffer)).toBe(true);
     },
     DB_HEAVY_TEST_TIMEOUT,
   );

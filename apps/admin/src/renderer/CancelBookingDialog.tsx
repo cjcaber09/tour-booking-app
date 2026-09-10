@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from './components/ui/button';
+import { useAppSettings } from './AppSettingsContext';
 
 interface CancelBookingDialogProps {
   booking: { reference: string; amountPaid: number };
@@ -8,6 +9,7 @@ interface CancelBookingDialogProps {
 }
 
 export function CancelBookingDialog({ booking, onConfirm, onCancel }: CancelBookingDialogProps) {
+  const { formatCurrency } = useAppSettings();
   const [refundAmount, setRefundAmount] = useState(String(booking.amountPaid));
 
   const parsed = Number(refundAmount);
@@ -18,8 +20,8 @@ export function CancelBookingDialog({ booking, onConfirm, onCancel }: CancelBook
       <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
         <h3 className="dialog-title">Cancel booking</h3>
         <p className="dialog-message">
-          Cancel {booking.reference}? This cannot be undone. Choose how much of the ${booking.amountPaid.toFixed(2)}{' '}
-          collected to refund.
+          Cancel {booking.reference}? This cannot be undone. Choose how much of the{' '}
+          {formatCurrency(booking.amountPaid)} collected to refund.
         </p>
         <label className="mb-2 flex flex-col gap-2 text-sm text-secondary">
           <span>Refund amount</span>
@@ -36,7 +38,7 @@ export function CancelBookingDialog({ booking, onConfirm, onCancel }: CancelBook
         </label>
         {!isValid && (
           <p className="m-0 mb-4 text-xs text-error">
-            Enter an amount between $0 and ${booking.amountPaid.toFixed(2)}.
+            Enter an amount between $0 and {formatCurrency(booking.amountPaid)}.
           </p>
         )}
         <div className="dialog-actions">

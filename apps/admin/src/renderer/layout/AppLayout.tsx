@@ -5,7 +5,8 @@ import { Settings } from '../screens/settings/Settings';
 import { Tours } from '../screens/tours/Tours';
 import { Bookings } from '../screens/bookings/Bookings';
 import { CalendarPage } from '../screens/calendar/CalendarPage';
-import { ComingSoon } from '../screens/ComingSoon';
+import { AuditPage } from '../screens/audit/AuditPage';
+import { Users } from '../screens/users/Users';
 import { Toaster } from '../Toaster';
 
 const SIDEBAR_COLLAPSED_KEY = 'admin.sidebarCollapsed';
@@ -23,7 +24,12 @@ function renderContent(activeView: View) {
     case 'calendar':
       return <CalendarPage />;
     case 'users':
-      return <ComingSoon title="Users" />;
+      return <Users />;
+    case 'audit':
+      // The nav entry itself is already stripped from packaged builds (see Sidebar.tsx's
+      // import.meta.env.DEV gate); this is a second layer so the route can't be reached
+      // by any other means in a production build either.
+      return import.meta.env.DEV ? <AuditPage /> : null;
   }
 }
 

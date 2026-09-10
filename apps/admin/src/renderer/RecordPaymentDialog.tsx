@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Banknote, FileText, Upload } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { cn } from './lib/utils';
+import { useAppSettings } from './AppSettingsContext';
 
 type PaymentMethod = 'CASH' | 'INVOICE_REFERENCE' | 'FILE';
 
@@ -20,6 +21,7 @@ interface RecordPaymentDialogProps {
 }
 
 export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaymentDialogProps) {
+  const { formatCurrency } = useAppSettings();
   const remaining = booking.totalPrice - booking.amountPaid;
   const [amountReceived, setAmountReceived] = useState('');
   const [method, setMethod] = useState<'' | PaymentMethod>('');
@@ -68,20 +70,20 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
 
   return (
     <div className="dialog-backdrop" onClick={onCancel}>
-      <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
+      <div className="dialog-card w-[min(440px,calc(100vw-3rem))]" onClick={(e) => e.stopPropagation()}>
         <h3 className="dialog-title">Record payment</h3>
         <p className="dialog-message">Recording a payment for {booking.reference}.</p>
 
         <div className="mb-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 text-sm text-secondary [&>span:nth-child(even)]:text-right [&>span:nth-child(even)]:font-semibold [&>span:nth-child(even)]:text-heading">
           <span>Total price</span>
-          <span>${booking.totalPrice.toFixed(2)}</span>
+          <span>{formatCurrency(booking.totalPrice)}</span>
           <span>Already paid</span>
-          <span>${booking.amountPaid.toFixed(2)}</span>
+          <span>{formatCurrency(booking.amountPaid)}</span>
           <span>Remaining balance</span>
-          <span>${remaining.toFixed(2)}</span>
+          <span>{formatCurrency(remaining)}</span>
         </div>
 
-        <label className="mb-2 flex flex-col gap-2 text-sm text-secondary">
+        <label className="mb-4 flex flex-col gap-2 text-sm text-secondary">
           <span>Amount received now</span>
           <input
             className="neu-field"
@@ -95,7 +97,7 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
           />
         </label>
 
-        <div className="mb-2 flex gap-2">
+        <div className="mb-4 flex gap-2">
           <Button
             className={cn('flex-1 flex-col gap-1 py-2 text-xs', method === 'CASH' && 'neu-inset')}
             onClick={() => setMethod('CASH')}
@@ -151,7 +153,7 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
           Full remaining balance
         </Button>
         {!isAmountValid && (
-          <p className="m-0 mb-4 text-xs text-error">Enter an amount between $0.01 and ${remaining.toFixed(2)}.</p>
+          <p className="m-0 mb-4 text-xs text-error">Enter an amount between $0.01 and {formatCurrency(remaining)}.</p>
         )}
 
         <div className="dialog-actions">

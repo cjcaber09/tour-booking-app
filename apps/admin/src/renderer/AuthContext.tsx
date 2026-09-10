@@ -9,6 +9,7 @@ interface AuthContextValue {
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -61,8 +62,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('unauthenticated');
   }, []);
 
+  // Re-pulls the session (a fresh access token plus the current admin record) without
+  // a full re-login — used after a Profile edit so session.admin reflects the change
+  // immediately instead of waiting for the next app restart.
+  const refreshSession = useCallback(async () => {
+    const restored = await window.authAPI.getSession();
+    setSession(restored);
+    setStatus(restored ? 'authenticated' : 'unauthenticated');
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ session, status, error, login, logout }}>
+    <AuthContext.Provider value={{ session, status, error, login, logout, refreshSession }}>
       {children}
     </AuthContext.Provider>
   );

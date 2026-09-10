@@ -1,12 +1,19 @@
-import { stats, bookingsTrend, recentBookings } from './mockAnalytics';
+import { useAppSettings } from '../AppSettingsContext';
+import { stats, revenueThisMonth, bookingsTrend, recentBookings } from './mockAnalytics';
 
 export function Dashboard() {
+  const { formatCurrency } = useAppSettings();
   const maxBookings = Math.max(...bookingsTrend.map((point) => point.bookings));
+  const statCards = [
+    stats[0],
+    { label: 'Revenue (This Month)', value: formatCurrency(revenueThisMonth) },
+    ...stats.slice(1),
+  ];
 
   return (
     <div className="box-border p-8">
       <section className="mb-8 grid grid-cols-2 gap-6 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {statCards.map((stat) => (
           <div className="flex flex-col gap-2 rounded-[20px] bg-surface p-6 neu-raised-lg" key={stat.label}>
             <span className="font-display text-4xl tracking-[0.03em] text-stat">{stat.value}</span>
             <span className="text-sm text-muted">{stat.label}</span>
