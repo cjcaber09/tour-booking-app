@@ -7,10 +7,13 @@ import type {
   TourDetail,
   BookingListFilters,
   ListBookingsResult,
+  CalendarBookingsResult,
   BookingDetail,
   CreateBookingPayload,
   UpdateBookingPayload,
   CancelBookingPayload,
+  RecordPaymentPayload,
+  UploadPaymentProofResult,
   SearchCustomersResult,
 } from '../preload';
 
@@ -152,6 +155,13 @@ export async function backendListBookings(
   return parseJsonOrThrow(res);
 }
 
+export async function backendGetBookingsCalendar(accessToken: string): Promise<CalendarBookingsResult> {
+  const res = await fetch(`${BACKEND_URL}/bookings/calendar`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
 export async function backendGetBooking(id: string, accessToken: string): Promise<BookingDetail> {
   const res = await fetch(`${BACKEND_URL}/bookings/${id}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -201,6 +211,18 @@ export async function backendConfirmBooking(id: string, accessToken: string): Pr
   return body;
 }
 
+export async function backendMarkBookingOngoing(id: string, accessToken: string): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}/bookings/${id}/ongoing`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
 export async function backendCancelBooking(
   id: string,
   payload: CancelBookingPayload,
@@ -210,6 +232,46 @@ export async function backendCancelBooking(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendRecordPayment(
+  id: string,
+  payload: RecordPaymentPayload,
+  accessToken: string,
+): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}/bookings/${id}/payments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendUploadPaymentProof(
+  id: string,
+  fileBase64: string,
+  filename: string,
+  mimetype: string,
+  accessToken: string,
+): Promise<UploadPaymentProofResult> {
+  const buffer = Buffer.from(fileBase64, 'base64');
+  const formData = new FormData();
+  formData.append('proof', new Blob([buffer], { type: mimetype }), filename);
+
+  const res = await fetch(`${BACKEND_URL}/bookings/${id}/payments/upload-proof`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
   });
   const body = await res.json();
   if (!res.ok) {

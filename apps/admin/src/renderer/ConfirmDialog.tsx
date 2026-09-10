@@ -1,4 +1,5 @@
-import './ConfirmDialog.css';
+import { cn } from './lib/utils';
+import { Button } from './components/ui/button';
 
 interface ConfirmDialogProps {
   title: string;
@@ -20,21 +21,15 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   return (
-    <div className="confirm-dialog-backdrop" onClick={onCancel}>
-      <div className="confirm-dialog-card" onClick={(e) => e.stopPropagation()}>
-        <h3 className="confirm-dialog-title">{title}</h3>
-        <p className="confirm-dialog-message">{message}</p>
-        <div className="confirm-dialog-actions">
-          <button type="button" className="neumorphic-button" onClick={onCancel}>
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            className={`neumorphic-button ${danger ? 'confirm-dialog-danger-button' : ''}`}
-            onClick={onConfirm}
-          >
+    <div className="dialog-backdrop" onClick={onCancel}>
+      <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
+        <h3 className="dialog-title">{title}</h3>
+        <p className="dialog-message">{message}</p>
+        <div className="dialog-actions">
+          <Button onClick={onCancel}>{cancelLabel}</Button>
+          <Button className={cn(danger && 'text-error')} onClick={onConfirm}>
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -4,9 +4,9 @@ import { Dashboard } from '../screens/Dashboard';
 import { Settings } from '../screens/settings/Settings';
 import { Tours } from '../screens/tours/Tours';
 import { Bookings } from '../screens/bookings/Bookings';
+import { CalendarPage } from '../screens/calendar/CalendarPage';
 import { ComingSoon } from '../screens/ComingSoon';
 import { Toaster } from '../Toaster';
-import './AppLayout.css';
 
 const SIDEBAR_COLLAPSED_KEY = 'admin.sidebarCollapsed';
 
@@ -20,6 +20,8 @@ function renderContent(activeView: View) {
       return <Tours />;
     case 'bookings':
       return <Bookings />;
+    case 'calendar':
+      return <CalendarPage />;
     case 'users':
       return <ComingSoon title="Users" />;
   }
@@ -40,14 +42,14 @@ export function AppLayout() {
   }
 
   return (
-    <div className="app-layout">
+    <div className="flex h-screen">
       <Sidebar
         activeView={activeView}
         onNavigate={setActiveView}
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
       />
-      <main className="app-layout-content">{renderContent(activeView)}</main>
+      <main className="flex-1 overflow-y-auto bg-surface">{renderContent(activeView)}</main>
       <Toaster />
     </div>
   );

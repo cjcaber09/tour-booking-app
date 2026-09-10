@@ -84,7 +84,7 @@ export interface TourDetail {
   categories: CategorySummary[];
 }
 
-export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'ONGOING' | 'COMPLETED' | 'CANCELLED';
 export type PaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'REFUNDED';
 
 export interface CustomerSummary {
@@ -119,6 +119,26 @@ export interface CancelBookingPayload {
   refundAmount: number;
 }
 
+export type PaymentMethod = 'CASH' | 'INVOICE_REFERENCE' | 'FILE';
+
+export interface PaymentRecord {
+  id: string;
+  amount: string;
+  method: PaymentMethod;
+  invoiceReference: string | null;
+  proofUrl: string | null;
+  createdAt: string;
+}
+
+export type RecordPaymentPayload =
+  | { method: 'CASH'; amount: number }
+  | { method: 'INVOICE_REFERENCE'; amount: number; invoiceReference: string }
+  | { method: 'FILE'; amount: number; proofUrl: string };
+
+export interface UploadPaymentProofResult {
+  url: string;
+}
+
 export interface BookingListFilters {
   status?: BookingStatus;
   paymentStatus?: PaymentStatus;
@@ -134,9 +154,11 @@ export interface BookingListItem {
   paymentStatus: PaymentStatus;
   participants: number;
   startDate: string;
+  finishDate: string;
   totalPrice: string;
   amountPaid: string;
   createdAt: string;
+  cancelledAt: string | null;
   tour: { id: string; title: string };
   customer: { id: string; name: string; email: string };
 }
@@ -149,6 +171,12 @@ export interface ListBookingsResult {
   totalPages: number;
 }
 
+export interface CalendarBookingsResult {
+  bookings: BookingListItem[];
+  from: string;
+  to: string;
+}
+
 export interface BookingDetail {
   id: string;
   reference: string;
@@ -156,6 +184,7 @@ export interface BookingDetail {
   paymentStatus: PaymentStatus;
   participants: number;
   startDate: string;
+  finishDate: string;
   totalPrice: string;
   amountPaid: string;
   refundAmount: string | null;
@@ -165,6 +194,7 @@ export interface BookingDetail {
   updatedAt: string;
   tour: { id: string; title: string; slug: string; imageCover: string | null };
   customer: CustomerSummary;
+  payments: PaymentRecord[];
 }
 
 contextBridge.exposeInMainWorld('authAPI', {
@@ -211,8 +241,22 @@ contextBridge.exposeInMainWorld('bookingsAPI', {
     ipcRenderer.invoke('bookings:update', id, payload, accessToken),
   confirm: (id: string, accessToken: string): Promise<unknown> =>
     ipcRenderer.invoke('bookings:confirm', id, accessToken),
+  ongoing: (id: string, accessToken: string): Promise<unknown> =>
+    ipcRenderer.invoke('bookings:ongoing', id, accessToken),
   cancel: (id: string, payload: CancelBookingPayload, accessToken: string): Promise<unknown> =>
     ipcRenderer.invoke('bookings:cancel', id, payload, accessToken),
+  calendar: (accessToken: string): Promise<CalendarBookingsResult> =>
+    ipcRenderer.invoke('bookings:calendar', accessToken),
+  recordPayment: (id: string, payload: RecordPaymentPayload, accessToken: string): Promise<BookingDetail> =>
+    ipcRenderer.invoke('bookings:record-payment', id, payload, accessToken),
+  uploadPaymentProof: (
+    id: string,
+    fileBase64: string,
+    filename: string,
+    mimetype: string,
+    accessToken: string,
+  ): Promise<UploadPaymentProofResult> =>
+    ipcRenderer.invoke('bookings:upload-payment-proof', id, fileBase64, filename, mimetype, accessToken),
 });
 
 contextBridge.exposeInMainWorld('customersAPI', {

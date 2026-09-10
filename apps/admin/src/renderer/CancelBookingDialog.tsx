@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import './ConfirmDialog.css';
-import './CancelBookingDialog.css';
+import { Button } from './components/ui/button';
 
 interface CancelBookingDialogProps {
   booking: { reference: string; amountPaid: number };
@@ -15,16 +14,17 @@ export function CancelBookingDialog({ booking, onConfirm, onCancel }: CancelBook
   const isValid = refundAmount.trim() !== '' && !Number.isNaN(parsed) && parsed >= 0 && parsed <= booking.amountPaid;
 
   return (
-    <div className="confirm-dialog-backdrop" onClick={onCancel}>
-      <div className="confirm-dialog-card" onClick={(e) => e.stopPropagation()}>
-        <h3 className="confirm-dialog-title">Cancel booking</h3>
-        <p className="confirm-dialog-message">
+    <div className="dialog-backdrop" onClick={onCancel}>
+      <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
+        <h3 className="dialog-title">Cancel booking</h3>
+        <p className="dialog-message">
           Cancel {booking.reference}? This cannot be undone. Choose how much of the ${booking.amountPaid.toFixed(2)}{' '}
           collected to refund.
         </p>
-        <label className="cancel-booking-dialog-field">
+        <label className="mb-2 flex flex-col gap-2 text-sm text-secondary">
           <span>Refund amount</span>
           <input
+            className="neu-field"
             type="number"
             min={0}
             max={booking.amountPaid}
@@ -35,20 +35,15 @@ export function CancelBookingDialog({ booking, onConfirm, onCancel }: CancelBook
           />
         </label>
         {!isValid && (
-          <p className="cancel-booking-dialog-error">Enter an amount between $0 and ${booking.amountPaid.toFixed(2)}.</p>
+          <p className="m-0 mb-4 text-xs text-error">
+            Enter an amount between $0 and ${booking.amountPaid.toFixed(2)}.
+          </p>
         )}
-        <div className="confirm-dialog-actions">
-          <button type="button" className="neumorphic-button" onClick={onCancel}>
-            Keep booking
-          </button>
-          <button
-            type="button"
-            className="neumorphic-button confirm-dialog-danger-button"
-            disabled={!isValid}
-            onClick={() => onConfirm(parsed)}
-          >
+        <div className="dialog-actions">
+          <Button onClick={onCancel}>Keep booking</Button>
+          <Button className="text-error" disabled={!isValid} onClick={() => onConfirm(parsed)}>
             Cancel booking
-          </button>
+          </Button>
         </div>
       </div>
     </div>

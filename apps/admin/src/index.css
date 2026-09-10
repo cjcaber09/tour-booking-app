@@ -1,6 +1,9 @@
+@import 'tailwindcss';
 @import '@fontsource/bebas-neue/index.css';
 @import '@fontsource/open-sans/index.css';
 @import '@fontsource/open-sans/600.css';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 :root {
   --font-display: 'Bebas Neue', sans-serif;
@@ -26,6 +29,10 @@
   --color-status-pending-text: #92400e;
   --color-status-cancelled-bg: #fee2e2;
   --color-status-cancelled-text: #991b1b;
+  --color-status-ongoing-bg: #dbeafe;
+  --color-status-ongoing-text: #1e40af;
+  --color-status-completed-bg: #ede9fe;
+  --color-status-completed-text: #5b21b6;
 }
 
 :root[data-theme='dark'] {
@@ -49,6 +56,82 @@
   --color-status-pending-text: #fcd34d;
   --color-status-cancelled-bg: #7f1d1d;
   --color-status-cancelled-text: #fca5a5;
+  --color-status-ongoing-bg: #1e3a8a;
+  --color-status-ongoing-text: #93c5fd;
+  --color-status-completed-bg: #4c1d95;
+  --color-status-completed-text: #c4b5fd;
+}
+
+/* Maps the app's runtime (light/dark-switchable) design tokens onto Tailwind utility
+   classes, e.g. bg-surface, text-heading, border-border, bg-confirmed. Keep the
+   :root blocks above as the single source of truth for the actual values. */
+@theme inline {
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+
+  --color-surface: var(--color-bg);
+  --color-sidebar-hover: var(--color-sidebar-hover);
+
+  --color-heading: var(--color-text-heading);
+  --color-secondary: var(--color-text-secondary);
+  --color-muted: var(--color-text-muted);
+  --color-stat: var(--color-text-stat);
+
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+
+  --color-accent-start: var(--color-accent-start);
+  --color-accent-end: var(--color-accent-end);
+  --color-error: var(--color-error);
+
+  --color-confirmed: var(--color-status-confirmed-bg);
+  --color-confirmed-foreground: var(--color-status-confirmed-text);
+  --color-pending: var(--color-status-pending-bg);
+  --color-pending-foreground: var(--color-status-pending-text);
+  --color-cancelled: var(--color-status-cancelled-bg);
+  --color-cancelled-foreground: var(--color-status-cancelled-text);
+  --color-ongoing: var(--color-status-ongoing-bg);
+  --color-ongoing-foreground: var(--color-status-ongoing-text);
+  --color-completed: var(--color-status-completed-bg);
+  --color-completed-foreground: var(--color-status-completed-text);
+}
+
+/* Neumorphic (soft UI) shadow primitives, reused across raised surfaces (cards,
+   buttons) and inset surfaces (inputs, pressed states). */
+@utility neu-raised {
+  box-shadow:
+    6px 6px 12px var(--color-shadow-dark),
+    -6px -6px 12px var(--color-shadow-light);
+}
+@utility neu-raised-lg {
+  box-shadow:
+    9px 9px 16px var(--color-shadow-dark),
+    -9px -9px 16px var(--color-shadow-light);
+}
+@utility neu-raised-sm {
+  box-shadow:
+    3px 3px 6px var(--color-shadow-dark),
+    -3px -3px 6px var(--color-shadow-light);
+}
+@utility neu-raised-xs {
+  box-shadow:
+    2px 2px 4px var(--color-shadow-dark),
+    -2px -2px 4px var(--color-shadow-light);
+}
+@utility neu-raised-md {
+  box-shadow:
+    4px 4px 8px var(--color-shadow-dark),
+    -4px -4px 8px var(--color-shadow-light);
+}
+@utility neu-inset {
+  box-shadow:
+    inset 4px 4px 8px var(--color-shadow-dark),
+    inset -4px -4px 8px var(--color-shadow-light);
+}
+@utility neu-inset-sm {
+  box-shadow:
+    inset 2px 2px 4px var(--color-shadow-dark),
+    inset -2px -2px 4px var(--color-shadow-light);
 }
 
 body {
@@ -56,24 +139,216 @@ body {
   margin: 0;
 }
 
-.neumorphic-button {
-  padding: 0.75rem 1rem;
-  border: none;
-  border-radius: 12px;
-  background: var(--color-bg);
-  box-shadow: 6px 6px 12px var(--color-shadow-dark), -6px -6px 12px var(--color-shadow-light);
-  font-family: var(--font-body);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text-heading);
-  cursor: pointer;
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-text-muted) transparent;
 }
 
-.neumorphic-button:active {
-  box-shadow: inset 4px 4px 8px var(--color-shadow-dark), inset -4px -4px 8px var(--color-shadow-light);
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-text-muted);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-heading);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
-.neumorphic-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide-panel {
+    transform: none;
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+  .slide-panel-open {
+    opacity: 1;
+  }
+}
+
+@layer components {
+  /* Shared "sunken" field style for text inputs, textareas, and native selects. */
+  .neu-field {
+    @apply w-full rounded-xl border-none bg-surface px-4 py-3 neu-inset font-body text-base text-heading outline-none placeholder:text-muted;
+  }
+
+  /* Shared modal shell used by ConfirmDialog, CancelBookingDialog, RecordPaymentDialog. */
+  .dialog-backdrop {
+    @apply fixed inset-0 z-[950] flex items-center justify-center bg-black/40;
+  }
+  .dialog-card {
+    @apply box-border w-[min(360px,calc(100vw-3rem))] rounded-2xl bg-surface p-6 shadow-[8px_8px_16px_var(--color-shadow-dark),-8px_-8px_16px_var(--color-shadow-light)];
+  }
+  .dialog-title {
+    @apply m-0 mb-2 font-display text-xl tracking-[0.04em] text-heading;
+  }
+  .dialog-message {
+    @apply m-0 mb-6 text-sm leading-normal text-secondary;
+  }
+  .dialog-actions {
+    @apply flex justify-end gap-3;
+  }
+
+  /* Sliding detail/edit panel used by the Tours and Bookings screens. */
+  .slide-panel {
+    @apply pointer-events-none absolute inset-0 box-border -translate-x-full bg-surface p-8 transition-transform duration-180 ease-[cubic-bezier(0.23,1,0.32,1)];
+  }
+  .slide-panel-open {
+    @apply pointer-events-auto translate-x-0 duration-280;
+  }
+
+  /* Two-column create/edit form layout shared by TourForm and BookingForm. */
+  .form-grid {
+    @apply grid h-full grid-cols-2 content-start gap-x-6 gap-y-4 overflow-y-auto p-8;
+  }
+  .panel-title {
+    @apply col-span-full m-0 font-display text-2xl tracking-[0.05em] text-heading;
+  }
+  .form-field {
+    @apply flex flex-col gap-2 text-sm text-secondary;
+  }
+  .form-field-error {
+    @apply m-0 text-xs text-error;
+  }
+  .form-actions {
+    @apply col-span-full mt-2 flex items-center gap-3;
+  }
+
+  /* Read-only detail view layout shared by TourView and BookingView. */
+  .detail-view {
+    @apply box-border flex h-full flex-col items-start gap-5 overflow-y-auto p-8;
+  }
+  .detail-grid {
+    @apply grid w-full grid-cols-2 gap-x-6 gap-y-4;
+  }
+  .detail-field {
+    @apply flex flex-col gap-1 text-sm text-heading;
+  }
+  .detail-label {
+    @apply text-xs font-semibold uppercase tracking-[0.04em] text-muted;
+  }
+  .detail-section {
+    @apply flex w-full flex-col gap-2;
+  }
+  .detail-section p {
+    @apply m-0 text-sm leading-normal text-secondary;
+  }
+
+  /* Underlined tab buttons shared by Settings and TourForm. */
+  .tab-button {
+    @apply -mb-px cursor-pointer border-none border-b-2 border-transparent bg-transparent px-4 py-2.5 font-body text-sm font-semibold text-muted hover:text-heading;
+  }
+  .tab-button-active {
+    @apply border-accent-end text-heading;
+  }
+
+  /* Shared chrome for the Tours and Bookings list screens. */
+  .screen-header {
+    @apply mb-6 flex items-center justify-between gap-4;
+  }
+  .screen-title {
+    @apply m-0 font-display text-[2rem] tracking-[0.05em] text-heading;
+  }
+  .status-message {
+    @apply m-0 mb-6 text-sm text-muted;
+  }
+  .status-message-error {
+    @apply text-error;
+  }
+
+  .table-container {
+    @apply mb-6 w-full rounded-[20px] bg-surface p-6 neu-raised-lg;
+  }
+  .data-table {
+    @apply w-full border-collapse text-sm text-heading;
+  }
+  .data-table th {
+    @apply border-b border-border px-3 py-2 text-left font-semibold text-muted;
+  }
+  .data-table td {
+    @apply border-b border-border-strong p-3;
+  }
+  .data-table tbody tr:hover td {
+    @apply bg-border;
+  }
+  .table-cell-clickable {
+    @apply cursor-pointer;
+  }
+
+  .row-actions {
+    @apply flex flex-wrap items-center content-center gap-2;
+  }
+  .action-button {
+    @apply inline-flex items-center gap-1.5 px-3.5 py-2 text-[0.8125rem];
+  }
+  .danger-text {
+    @apply text-error;
+  }
+
+  .pagination {
+    @apply flex items-center gap-2;
+  }
+  .page-arrow,
+  .page-button {
+    @apply min-w-10 px-3.5 py-2;
+  }
+  .page-arrow {
+    @apply inline-flex items-center justify-center;
+  }
+  .page-button-active {
+    @apply neu-inset cursor-default;
+  }
+
+  .status-badge {
+    @apply inline-block rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+  .status-confirmed {
+    @apply bg-confirmed text-confirmed-foreground;
+  }
+  .status-pending {
+    @apply bg-pending text-pending-foreground;
+  }
+  .status-cancelled {
+    @apply bg-cancelled text-cancelled-foreground;
+  }
+  .status-ongoing {
+    @apply bg-ongoing text-ongoing-foreground;
+  }
+  .status-completed {
+    @apply bg-completed text-completed-foreground;
+  }
+
+  .payment-badge {
+    @apply inline-block rounded-full px-2.5 py-1 text-[0.7rem] font-semibold;
+  }
+  .payment-unpaid {
+    @apply bg-cancelled text-cancelled-foreground;
+  }
+  .payment-partial {
+    @apply bg-pending text-pending-foreground;
+  }
+  .payment-paid {
+    @apply bg-confirmed text-confirmed-foreground;
+  }
+  .payment-refunded {
+    @apply bg-border text-muted;
+  }
 }

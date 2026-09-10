@@ -2,7 +2,14 @@ import { ChangeEvent, DragEvent, FormEvent, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useAuth } from '../../AuthContext';
 import { toast } from '../../toast';
+import { cn } from '../../lib/utils';
+import { fileToBase64 } from '../../lib/file';
+import { Button } from '../../components/ui/button';
 import type { CreateTourPayload, TourDetail } from '../../../preload';
+
+const DROPZONE_CLASS =
+  'flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface px-4 py-6 text-center text-sm text-muted transition-colors duration-150 ease-in-out hover:border-muted';
+const DROPZONE_ACTIVE_CLASS = 'border-accent-end text-heading';
 
 interface TourFormProps {
   tour?: TourDetail;
@@ -68,18 +75,6 @@ function cleanIpcErrorMessage(message: string): string {
   return message
     .replace(/^Error invoking remote method '[^']+':\s*/, '')
     .replace(/^Error:\s*/, '');
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.slice(result.indexOf(',') + 1));
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }
 
 export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
@@ -337,20 +332,20 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
   }
 
   return (
-    <form className="tour-form" onSubmit={handleSubmit}>
-      <h2>{isEditing ? 'Edit Tour' : 'New Tour'}</h2>
+    <form className="form-grid" onSubmit={handleSubmit}>
+      <h2 className="panel-title">{isEditing ? 'Edit Tour' : 'New Tour'}</h2>
 
-      <div className="tour-form-tabs">
+      <div className="col-span-full mb-2 flex gap-2 border-b border-border">
         <button
           type="button"
-          className={`tour-form-tab ${activeTab === 'details' ? 'tour-form-tab-active' : ''}`}
+          className={cn('tab-button', activeTab === 'details' && 'tab-button-active')}
           onClick={() => setActiveTab('details')}
         >
           Details
         </button>
         <button
           type="button"
-          className={`tour-form-tab ${activeTab === 'images' ? 'tour-form-tab-active' : ''}`}
+          className={cn('tab-button', activeTab === 'images' && 'tab-button-active')}
           onClick={() => setActiveTab('images')}
         >
           Images
@@ -359,33 +354,36 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
 
       {activeTab === 'details' && (
         <>
-          <label className="tour-field tour-field-full">
+          <label className="form-field col-span-full">
             <span>Title</span>
             <input
+              className="neu-field"
               name="title"
               placeholder="e.g. Sunset Kayak Tour"
               value={form.title}
               onChange={(e) => update('title', e.target.value)}
               required
             />
-            {fieldErrors.title && <p className="tour-field-error">{fieldErrors.title}</p>}
+            {fieldErrors.title && <p className="form-field-error">{fieldErrors.title}</p>}
           </label>
 
-          <label className="tour-field tour-field-full">
+          <label className="form-field col-span-full">
             <span>Description</span>
             <textarea
+              className="neu-field min-h-20 resize-y"
               name="description"
               placeholder="Describe what makes this tour worth booking..."
               value={form.description}
               onChange={(e) => update('description', e.target.value)}
               required
             />
-            {fieldErrors.description && <p className="tour-field-error">{fieldErrors.description}</p>}
+            {fieldErrors.description && <p className="form-field-error">{fieldErrors.description}</p>}
           </label>
 
-          <label className="tour-field">
+          <label className="form-field">
             <span>Summary</span>
             <input
+              className="neu-field"
               name="summary"
               placeholder="A short one-line summary for listings"
               value={form.summary}
@@ -393,9 +391,10 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
             />
           </label>
 
-          <label className="tour-field">
+          <label className="form-field">
             <span>Price</span>
             <input
+              className="neu-field"
               name="price"
               type="number"
               placeholder="0.00"
@@ -403,48 +402,52 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
               onChange={(e) => update('price', e.target.value)}
               required
             />
-            {fieldErrors.price && <p className="tour-field-error">{fieldErrors.price}</p>}
+            {fieldErrors.price && <p className="form-field-error">{fieldErrors.price}</p>}
           </label>
 
-          <label className="tour-field">
+          <label className="form-field">
             <span>Price discount</span>
             <input
+              className="neu-field"
               name="priceDiscount"
               type="number"
               placeholder="Optional discounted price"
               value={form.priceDiscount}
               onChange={(e) => update('priceDiscount', e.target.value)}
             />
-            {fieldErrors.priceDiscount && <p className="tour-field-error">{fieldErrors.priceDiscount}</p>}
+            {fieldErrors.priceDiscount && <p className="form-field-error">{fieldErrors.priceDiscount}</p>}
           </label>
 
-          <label className="tour-field">
+          <label className="form-field">
             <span>Duration (days)</span>
             <input
+              className="neu-field"
               name="duration"
               type="number"
               placeholder="e.g. 5"
               value={form.duration}
               onChange={(e) => update('duration', e.target.value)}
             />
-            {fieldErrors.duration && <p className="tour-field-error">{fieldErrors.duration}</p>}
+            {fieldErrors.duration && <p className="form-field-error">{fieldErrors.duration}</p>}
           </label>
 
-          <label className="tour-field">
+          <label className="form-field">
             <span>Max group size</span>
             <input
+              className="neu-field"
               name="maxGroupSize"
               type="number"
               placeholder="e.g. 12"
               value={form.maxGroupSize}
               onChange={(e) => update('maxGroupSize', e.target.value)}
             />
-            {fieldErrors.maxGroupSize && <p className="tour-field-error">{fieldErrors.maxGroupSize}</p>}
+            {fieldErrors.maxGroupSize && <p className="form-field-error">{fieldErrors.maxGroupSize}</p>}
           </label>
 
-          <label className="tour-field">
+          <label className="form-field">
             <span>Difficulty</span>
             <select
+              className="neu-field"
               name="difficulty"
               value={form.difficulty}
               onChange={(e) => update('difficulty', e.target.value as FormState['difficulty'])}
@@ -456,10 +459,10 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
             </select>
           </label>
 
-          <div className="tour-field tour-field-full">
+          <div className="form-field col-span-full">
             <span>Cover image</span>
             <div
-              className={`tour-image-dropzone ${isCoverDragActive ? 'tour-image-dropzone-active' : ''}`}
+              className={cn(DROPZONE_CLASS, isCoverDragActive && DROPZONE_ACTIVE_CLASS)}
               role="button"
               tabIndex={0}
               onClick={() => coverInputRef.current?.click()}
@@ -480,15 +483,22 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
               onChange={handleImageChange}
-              className="tour-image-input-hidden"
+              className="hidden"
             />
-            {imagePreviewUrl && <img className="tour-image-preview" src={imagePreviewUrl} alt="Cover preview" />}
-            {imageError && <p className="tour-field-error">{imageError}</p>}
+            {imagePreviewUrl && (
+              <img
+                className="h-30 w-40 rounded-xl object-cover neu-raised-md"
+                src={imagePreviewUrl}
+                alt="Cover preview"
+              />
+            )}
+            {imageError && <p className="form-field-error">{imageError}</p>}
           </div>
 
-          <label className="tour-field tour-field-full">
+          <label className="form-field col-span-full">
             <span>Start location</span>
             <input
+              className="neu-field"
               name="startLocation"
               placeholder="e.g. Bali, Indonesia"
               value={form.startLocation}
@@ -496,7 +506,7 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
             />
           </label>
 
-          <label className="tour-field tour-field-checkbox tour-field-full">
+          <label className="form-field col-span-full flex-row items-center gap-2">
             <input
               name="isActive"
               type="checkbox"
@@ -509,10 +519,10 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
       )}
 
       {activeTab === 'images' && (
-        <div className="tour-field tour-field-full">
+        <div className="form-field col-span-full">
           <span>Gallery images</span>
           <div
-            className={`tour-image-dropzone ${isGalleryDragActive ? 'tour-image-dropzone-active' : ''}`}
+            className={cn(DROPZONE_CLASS, isGalleryDragActive && DROPZONE_ACTIVE_CLASS)}
             role="button"
             tabIndex={0}
             onClick={() => galleryInputRef.current?.click()}
@@ -534,17 +544,21 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
             accept="image/jpeg,image/png,image/webp,image/gif"
             multiple
             onChange={handleGalleryFilesChange}
-            className="tour-image-input-hidden"
+            className="hidden"
           />
-          {galleryError && <p className="tour-field-error">{galleryError}</p>}
+          {galleryError && <p className="form-field-error">{galleryError}</p>}
           {galleryImages.length > 0 && (
-            <div className="tour-images-grid">
+            <div className="mt-2 flex flex-wrap gap-3">
               {galleryImages.map((image) => (
-                <div className="tour-image-thumb-wrapper" key={image.id}>
-                  <img className="tour-image-thumb" src={image.url ?? image.previewUrl} alt="" />
+                <div className="relative h-20 w-25" key={image.id}>
+                  <img
+                    className="block h-20 w-25 rounded-[10px] object-cover neu-raised-md"
+                    src={image.url ?? image.previewUrl}
+                    alt=""
+                  />
                   <button
                     type="button"
-                    className="tour-image-remove-button"
+                    className="absolute -right-1.5 -top-1.5 flex h-5.5 w-5.5 items-center justify-center rounded-full border-none bg-surface p-0 text-sm leading-none text-error neu-raised-xs active:neu-inset-sm"
                     onClick={() => handleRemoveGalleryImage(image.id)}
                     aria-label="Remove image"
                   >
@@ -557,13 +571,13 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
         </div>
       )}
 
-      <div className="tour-form-actions">
-        <button type="button" className="neumorphic-button" onClick={handleCancel} disabled={submitting}>
+      <div className="form-actions">
+        <Button type="button" onClick={handleCancel} disabled={submitting}>
           Cancel
-        </button>
-        <button type="submit" className="neumorphic-button" disabled={submitting}>
+        </Button>
+        <Button type="submit" disabled={submitting}>
           {submitting ? (isEditing ? 'Saving…' : 'Creating…') : isEditing ? 'Save Changes' : 'Create Tour'}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -28,10 +28,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    window.authAPI.getSession().then((restored) => {
-      setSession(restored);
-      setStatus(restored ? 'authenticated' : 'unauthenticated');
-    });
+    window.authAPI
+      .getSession()
+      .then((restored) => {
+        setSession(restored);
+        setStatus(restored ? 'authenticated' : 'unauthenticated');
+      })
+      .catch(() => {
+        // Mirrors the main process's own fallback for a failed restore (e.g. an
+        // undecryptable session file) — treat it as no session rather than hanging
+        // on "loading" forever.
+        setSession(null);
+        setStatus('unauthenticated');
+      });
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

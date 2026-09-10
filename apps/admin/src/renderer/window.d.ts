@@ -8,10 +8,13 @@ import type {
   TourDetail,
   BookingListFilters,
   ListBookingsResult,
+  CalendarBookingsResult,
   BookingDetail,
   CreateBookingPayload,
   UpdateBookingPayload,
   CancelBookingPayload,
+  RecordPaymentPayload,
+  UploadPaymentProofResult,
   SearchCustomersResult,
 } from '../preload';
 
@@ -50,7 +53,17 @@ declare global {
       create: (payload: CreateBookingPayload, accessToken: string) => Promise<unknown>;
       update: (id: string, payload: UpdateBookingPayload, accessToken: string) => Promise<unknown>;
       confirm: (id: string, accessToken: string) => Promise<unknown>;
+      ongoing: (id: string, accessToken: string) => Promise<unknown>;
       cancel: (id: string, payload: CancelBookingPayload, accessToken: string) => Promise<unknown>;
+      calendar: (accessToken: string) => Promise<CalendarBookingsResult>;
+      recordPayment: (id: string, payload: RecordPaymentPayload, accessToken: string) => Promise<BookingDetail>;
+      uploadPaymentProof: (
+        id: string,
+        fileBase64: string,
+        filename: string,
+        mimetype: string,
+        accessToken: string,
+      ) => Promise<UploadPaymentProofResult>;
     };
     customersAPI: {
       search: (q: string, accessToken: string) => Promise<SearchCustomersResult>;

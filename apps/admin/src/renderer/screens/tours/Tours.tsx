@@ -7,7 +7,8 @@ import { toast } from '../../toast';
 import { LoadingOverlay } from '../../LoadingOverlay';
 import { ConfirmDialog } from '../../ConfirmDialog';
 import type { TourListItem, TourDetail } from '../../../preload';
-import './Tours.css';
+import { cn } from '../../lib/utils';
+import { Button } from '../../components/ui/button';
 
 type Mode =
   | { kind: 'idle' }
@@ -160,118 +161,115 @@ export function Tours() {
   }
 
   return (
-    <div className="tours">
-      <div className="tours-content">
-        <div className="tours-header">
-          <h1>Tours</h1>
-          <button className="neumorphic-button" onClick={handleNewTourClick}>
-            New Tour
-          </button>
+    <div className="relative h-full overflow-hidden">
+      <div className="box-border h-full overflow-y-auto p-8">
+        <div className="screen-header">
+          <h1 className="screen-title">Tours</h1>
+          <Button onClick={handleNewTourClick}>New Tour</Button>
         </div>
 
-        {error && <p className="tours-status tours-status-error">{error}</p>}
-        {!error && loading && total === 0 && <p className="tours-status">Loading tours…</p>}
-        {!error && !loading && total === 0 && <p className="tours-empty">No tours created yet.</p>}
+        {error && <p className="status-message status-message-error">{error}</p>}
+        {!error && loading && total === 0 && <p className="status-message">Loading tours…</p>}
+        {!error && !loading && total === 0 && <p className="status-message">No tours created yet.</p>}
 
         {total > 0 && (
           <>
-            <table className="tours-table">
-              <thead>
-                <tr>
-                  <th aria-hidden="true"></th>
-                  <th>Title</th>
-                  <th>Price</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th aria-hidden="true"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {tours.map((tour) => (
-                  <tr key={tour.id}>
-                    <td className="tours-table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
-                      {tour.imageCover ? (
-                        <img className="tours-table-thumb" src={tour.imageCover} alt="" />
-                      ) : (
-                        <div className="tours-table-thumb tours-table-thumb-placeholder" />
-                      )}
-                    </td>
-                    <td className="tours-table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
-                      {tour.title}
-                    </td>
-                    <td className="tours-table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
-                      ${Number(tour.price).toFixed(2)}
-                    </td>
-                    <td className="tours-table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
-                      <span className={`status-badge ${tour.isActive ? 'status-confirmed' : 'status-cancelled'}`}>
-                        {tour.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="tours-table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
-                      {new Date(tour.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="tours-row-actions">
-                      <button
-                        type="button"
-                        className="neumorphic-button tours-edit-button"
-                        onClick={() => handleEditClick(tour.id)}
-                        disabled={rowLoadingId === tour.id}
-                      >
-                        <Pencil size={14} />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="neumorphic-button tours-edit-button"
-                        onClick={() => handleSuspendToggle(tour)}
-                        disabled={rowLoadingId === tour.id}
-                      >
-                        {tour.isActive ? <PauseCircle size={14} /> : <PlayCircle size={14} />}
-                        {tour.isActive ? 'Suspend' : 'Activate'}
-                      </button>
-                      <button
-                        type="button"
-                        className="neumorphic-button tours-edit-button tours-delete-button"
-                        onClick={() => handleDeleteClick(tour)}
-                        disabled={rowLoadingId === tour.id}
-                      >
-                        <Trash2 size={14} />
-                        Delete
-                      </button>
-                    </td>
+            <div className="table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th aria-hidden="true"></th>
+                    <th>Title</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th aria-hidden="true"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {tours.map((tour) => (
+                    <tr key={tour.id}>
+                      <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
+                        {tour.imageCover ? (
+                          <img className="block h-9 w-12 rounded-lg object-cover" src={tour.imageCover} alt="" />
+                        ) : (
+                          <div className="h-9 w-12 rounded-lg bg-[var(--color-shadow-dark)] opacity-40" />
+                        )}
+                      </td>
+                      <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
+                        {tour.title}
+                      </td>
+                      <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
+                        ${Number(tour.price).toFixed(2)}
+                      </td>
+                      <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
+                        <span className={`status-badge ${tour.isActive ? 'status-confirmed' : 'status-cancelled'}`}>
+                          {tour.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="table-cell-clickable" onClick={() => handleViewClick(tour.id)}>
+                        {new Date(tour.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="row-actions">
+                        <Button
+                          className="action-button"
+                          onClick={() => handleEditClick(tour.id)}
+                          disabled={rowLoadingId === tour.id}
+                        >
+                          <Pencil size={14} />
+                          Edit
+                        </Button>
+                        <Button
+                          className="action-button"
+                          onClick={() => handleSuspendToggle(tour)}
+                          disabled={rowLoadingId === tour.id}
+                        >
+                          {tour.isActive ? <PauseCircle size={14} /> : <PlayCircle size={14} />}
+                          {tour.isActive ? 'Suspend' : 'Activate'}
+                        </Button>
+                        <Button
+                          className="action-button danger-text"
+                          onClick={() => handleDeleteClick(tour)}
+                          disabled={rowLoadingId === tour.id}
+                        >
+                          <Trash2 size={14} />
+                          Delete
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {totalPages > 1 && (
-              <div className="tours-pagination">
-                <button
-                  className="neumorphic-button tours-page-arrow"
+              <div className="pagination">
+                <Button
+                  className="page-arrow"
                   onClick={() => goToPage(page - 1)}
                   disabled={loading || page <= 1}
                   aria-label="Previous page"
                 >
                   <ChevronLeft size={16} />
-                </button>
+                </Button>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                  <button
+                  <Button
                     key={n}
-                    className={`neumorphic-button tours-page-button ${n === page ? 'tours-page-button-active' : ''}`}
+                    className={cn('page-button', n === page && 'page-button-active')}
                     onClick={() => goToPage(n)}
                     disabled={loading || n === page}
                   >
                     {n}
-                  </button>
+                  </Button>
                 ))}
-                <button
-                  className="neumorphic-button tours-page-arrow"
+                <Button
+                  className="page-arrow"
                   onClick={() => goToPage(page + 1)}
                   disabled={loading || page >= totalPages}
                   aria-label="Next page"
                 >
                   <ChevronRight size={16} />
-                </button>
+                </Button>
               </div>
             )}
           </>
@@ -291,7 +289,7 @@ export function Tours() {
         />
       )}
 
-      <div className={`tours-panel ${mode.kind !== 'idle' ? 'tours-panel-open' : ''}`}>
+      <div className={cn('slide-panel', mode.kind !== 'idle' && 'slide-panel-open')}>
         {mode.kind === 'view' ? (
           <TourView key={panelKey} tour={mode.tour} onBack={() => setMode({ kind: 'idle' })} />
         ) : (

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { saveRefreshToken, loadRefreshToken, clearRefreshToken } from './main/session-store';
@@ -15,11 +15,15 @@ import {
   backendUploadImages,
   backendListTours,
   backendListBookings,
+  backendGetBookingsCalendar,
   backendGetBooking,
   backendCreateBooking,
   backendUpdateBooking,
   backendConfirmBooking,
+  backendMarkBookingOngoing,
   backendCancelBooking,
+  backendRecordPayment,
+  backendUploadPaymentProof,
   backendSearchCustomers,
 } from './main/backend-client';
 
@@ -49,6 +53,13 @@ const createWindow = () => {
 
   // Open the DevTools.
   mainWindow.webContents.openDevTools();
+
+  // Without this, target="_blank" links (e.g. a payment-proof "View proof" link)
+  // silently no-op instead of opening in the OS's default browser.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
 };
 
 ipcMain.handle('auth:login', async (_event, email: string, password: string) => {
@@ -152,6 +163,14 @@ ipcMain.handle('bookings:list', async (_event, page, limit, filters, accessToken
   }
 });
 
+ipcMain.handle('bookings:calendar', async (_event, accessToken: string) => {
+  try {
+    return await backendGetBookingsCalendar(accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'calendar failed');
+  }
+});
+
 ipcMain.handle('bookings:get', async (_event, id: string, accessToken: string) => {
   try {
     return await backendGetBooking(id, accessToken);
@@ -184,6 +203,14 @@ ipcMain.handle('bookings:confirm', async (_event, id: string, accessToken: strin
   }
 });
 
+ipcMain.handle('bookings:ongoing', async (_event, id: string, accessToken: string) => {
+  try {
+    return await backendMarkBookingOngoing(id, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'ongoing failed');
+  }
+});
+
 ipcMain.handle('bookings:cancel', async (_event, id: string, payload, accessToken: string) => {
   try {
     return await backendCancelBooking(id, payload, accessToken);
@@ -191,6 +218,25 @@ ipcMain.handle('bookings:cancel', async (_event, id: string, payload, accessToke
     throw new Error(err instanceof Error ? err.message : 'cancel failed');
   }
 });
+
+ipcMain.handle('bookings:record-payment', async (_event, id: string, payload, accessToken: string) => {
+  try {
+    return await backendRecordPayment(id, payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'record payment failed');
+  }
+});
+
+ipcMain.handle(
+  'bookings:upload-payment-proof',
+  async (_event, id: string, fileBase64: string, filename: string, mimetype: string, accessToken: string) => {
+    try {
+      return await backendUploadPaymentProof(id, fileBase64, filename, mimetype, accessToken);
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'upload failed');
+    }
+  },
+);
 
 ipcMain.handle('customers:search', async (_event, q: string, accessToken: string) => {
   try {

@@ -1,5 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Pencil, DollarSign, CircleCheck, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  DollarSign,
+  CircleCheck,
+  PlayCircle,
+  XCircle,
+  Eye,
+  Search,
+  EllipsisVertical,
+  type LucideProps,
+} from 'lucide-react';
 import { BookingForm } from './BookingForm';
 import { BookingView } from './BookingView';
 import { useAuth } from '../../AuthContext';
@@ -8,8 +20,17 @@ import { LoadingOverlay } from '../../LoadingOverlay';
 import { ConfirmDialog } from '../../ConfirmDialog';
 import { CancelBookingDialog } from '../../CancelBookingDialog';
 import { RecordPaymentDialog } from '../../RecordPaymentDialog';
-import type { BookingListItem, BookingDetail } from '../../../preload';
-import './Bookings.css';
+import type {
+  BookingListItem,
+  BookingDetail,
+  BookingStatus,
+  PaymentMethod,
+  RecordPaymentPayload,
+} from '../../../preload';
+import { cn } from '../../lib/utils';
+import { fileToBase64 } from '../../lib/file';
+import { Button } from '../../components/ui/button';
+import { Popover, PopoverTrigger, PopoverContent } from '../../components/ui/popover';
 
 type Mode =
   | { kind: 'idle' }
@@ -24,6 +45,126 @@ function cleanIpcErrorMessage(message: string): string {
     .replace(/^Error:\s*/, '');
 }
 
+function isStartDateDue(startDate: string): boolean {
+  const start = new Date(startDate);
+  const today = new Date();
+  start.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  return start <= today;
+}
+
+function isLocked(booking: BookingListItem): boolean {
+  return (
+    booking.status === 'ONGOING' ||
+    booking.status === 'COMPLETED' ||
+    (booking.status === 'CONFIRMED' && isStartDateDue(booking.startDate))
+  );
+}
+
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function formatDateRange(startDate: string, finishDate: string): { rangeText: string; singleDay: boolean } {
+  const start = new Date(startDate);
+  const finish = new Date(finishDate);
+  if (isSameCalendarDay(start, finish)) {
+    return { rangeText: start.toLocaleDateString(), singleDay: true };
+  }
+  return { rangeText: `${start.toLocaleDateString()} – ${finish.toLocaleDateString()}`, singleDay: false };
+}
+
+const STATUS_BORDER_CLASS: Record<BookingStatus, string> = {
+  PENDING: 'border-pending',
+  CONFIRMED: 'border-confirmed',
+  ONGOING: 'border-ongoing',
+  COMPLETED: 'border-completed',
+  CANCELLED: 'border-cancelled',
+};
+
+type StatusTabKey = 'ALL' | 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+
+const STATUS_TABS: { key: StatusTabKey; label: string }[] = [
+  { key: 'ALL', label: 'All' },
+  { key: 'PENDING', label: 'Pending' },
+  { key: 'CONFIRMED', label: 'Confirmed' },
+  { key: 'CANCELLED', label: 'Cancelled' },
+];
+
+interface RowAction {
+  key: string;
+  label: string;
+  Icon: ComponentType<LucideProps>;
+  onClick: () => void;
+  danger?: boolean;
+}
+
+interface RowActionHandlers {
+  onView: (booking: BookingListItem) => void;
+  onEdit: (booking: BookingListItem) => void;
+  onConfirm: (booking: BookingListItem) => void;
+  onMarkOngoing: (booking: BookingListItem) => void;
+  onRecordPayment: (booking: BookingListItem) => void;
+  onCancel: (booking: BookingListItem) => void;
+}
+
+// Mirrors the exact conditions the table used to gate each action button on, just
+// reorganized into "one primary action" plus "everything else in the overflow menu".
+function getRowActions(
+  booking: BookingListItem,
+  handlers: RowActionHandlers,
+): { primary: RowAction | null; overflow: RowAction[] } {
+  const cancelled = booking.status === 'CANCELLED';
+  const locked = isLocked(booking);
+  const canEdit = !cancelled && !locked;
+  const canRecordPayment = !cancelled && booking.paymentStatus !== 'PAID';
+  const canConfirm = booking.status === 'PENDING';
+  const canMarkOngoing = booking.status === 'CONFIRMED' && isStartDateDue(booking.startDate);
+  const canCancel = !cancelled && !(locked && booking.paymentStatus === 'PAID');
+
+  const viewAction: RowAction = { key: 'view', label: 'View', Icon: Eye, onClick: () => handlers.onView(booking) };
+  const editAction: RowAction = { key: 'edit', label: 'Edit', Icon: Pencil, onClick: () => handlers.onEdit(booking) };
+  const confirmAction: RowAction = {
+    key: 'confirm',
+    label: 'Confirm',
+    Icon: CircleCheck,
+    onClick: () => handlers.onConfirm(booking),
+  };
+  const markOngoingAction: RowAction = {
+    key: 'mark-ongoing',
+    label: 'Mark Ongoing',
+    Icon: PlayCircle,
+    onClick: () => handlers.onMarkOngoing(booking),
+  };
+  const recordPaymentAction: RowAction = {
+    key: 'record-payment',
+    label: 'Record Payment',
+    Icon: DollarSign,
+    onClick: () => handlers.onRecordPayment(booking),
+  };
+  const cancelAction: RowAction = {
+    key: 'cancel',
+    label: 'Cancel',
+    Icon: XCircle,
+    onClick: () => handlers.onCancel(booking),
+    danger: true,
+  };
+
+  let primary: RowAction | null = null;
+  if (canConfirm) primary = confirmAction;
+  else if (canRecordPayment) primary = recordPaymentAction;
+  else if (canMarkOngoing) primary = markOngoingAction;
+
+  const overflow: RowAction[] = [viewAction];
+  if (canEdit) overflow.push(editAction);
+  if (canConfirm && primary?.key !== 'confirm') overflow.push(confirmAction);
+  if (canRecordPayment && primary?.key !== 'record-payment') overflow.push(recordPaymentAction);
+  if (canMarkOngoing && primary?.key !== 'mark-ongoing') overflow.push(markOngoingAction);
+  if (canCancel) overflow.push(cancelAction);
+
+  return { primary, overflow };
+}
+
 export function Bookings() {
   const { session } = useAuth();
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
@@ -32,6 +173,7 @@ export function Bookings() {
   const [confirmPendingCancel, setConfirmPendingCancel] = useState<BookingListItem | null>(null);
   const [confirmedCancelBooking, setConfirmedCancelBooking] = useState<BookingListItem | null>(null);
   const [confirmActionBooking, setConfirmActionBooking] = useState<BookingListItem | null>(null);
+  const [ongoingActionBooking, setOngoingActionBooking] = useState<BookingListItem | null>(null);
   const [recordPaymentBooking, setRecordPaymentBooking] = useState<BookingListItem | null>(null);
   const [bookings, setBookings] = useState<BookingListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -39,6 +181,35 @@ export function Bookings() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusTabKey>('ALL');
+
+  const statusCounts = useMemo(
+    () => ({
+      ALL: bookings.length,
+      PENDING: bookings.filter((b) => b.status === 'PENDING').length,
+      CONFIRMED: bookings.filter((b) => b.status === 'CONFIRMED').length,
+      CANCELLED: bookings.filter((b) => b.status === 'CANCELLED').length,
+    }),
+    [bookings],
+  );
+
+  const filteredBookings = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return bookings.filter((booking) => {
+      if (statusFilter !== 'ALL' && booking.status !== statusFilter) {
+        return false;
+      }
+      if (!q) {
+        return true;
+      }
+      return (
+        booking.reference.toLowerCase().includes(q) ||
+        booking.tour.title.toLowerCase().includes(q) ||
+        booking.customer.name.toLowerCase().includes(q)
+      );
+    });
+  }, [bookings, search, statusFilter]);
 
   const fetchBookings = useCallback(
     async (targetPage: number) => {
@@ -128,6 +299,31 @@ export function Bookings() {
     }
   }
 
+  function handleMarkOngoingClick(booking: BookingListItem) {
+    if (rowLoadingId) {
+      return;
+    }
+    setOngoingActionBooking(booking);
+  }
+
+  async function handleMarkOngoingConfirm() {
+    if (!session || !ongoingActionBooking) {
+      return;
+    }
+    const booking = ongoingActionBooking;
+    setOngoingActionBooking(null);
+    setRowLoadingId(booking.id);
+    try {
+      await window.bookingsAPI.ongoing(booking.id, session.accessToken);
+      toast.success('Booking marked ongoing.');
+      setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, status: 'ONGOING' } : b)));
+    } catch (err) {
+      toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not mark booking ongoing.');
+    } finally {
+      setRowLoadingId(null);
+    }
+  }
+
   function handleCancelClick(booking: BookingListItem) {
     if (rowLoadingId) {
       return;
@@ -165,8 +361,14 @@ export function Bookings() {
     try {
       await window.bookingsAPI.cancel(booking.id, { refundAmount }, session.accessToken);
       toast.success('Booking cancelled.');
+      // Mirrors the backend's own rule (POST /bookings/:id/cancel): paymentStatus flips to
+      // REFUNDED whenever refundAmount > 0, otherwise it's left as whatever it already was.
       setBookings((prev) =>
-        prev.map((b) => (b.id === booking.id ? { ...b, status: 'CANCELLED' } : b)),
+        prev.map((b) =>
+          b.id === booking.id
+            ? { ...b, status: 'CANCELLED', paymentStatus: refundAmount > 0 ? 'REFUNDED' : b.paymentStatus }
+            : b,
+        ),
       );
     } catch (err) {
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not cancel booking.');
@@ -182,7 +384,12 @@ export function Bookings() {
     setRecordPaymentBooking(booking);
   }
 
-  async function handleConfirmRecordPayment(newAmountPaid: number) {
+  async function handleConfirmRecordPayment(payload: {
+    amount: number;
+    method: PaymentMethod;
+    invoiceReference?: string;
+    file?: File;
+  }) {
     if (!session || !recordPaymentBooking) {
       return;
     }
@@ -190,11 +397,24 @@ export function Bookings() {
     setRecordPaymentBooking(null);
     setRowLoadingId(booking.id);
     try {
-      const updated = (await window.bookingsAPI.update(
-        booking.id,
-        { amountPaid: newAmountPaid },
-        session.accessToken,
-      )) as { paymentStatus: BookingListItem['paymentStatus']; amountPaid: string };
+      let proofUrl: string | undefined;
+      if (payload.file) {
+        const base64 = await fileToBase64(payload.file);
+        ({ url: proofUrl } = await window.bookingsAPI.uploadPaymentProof(
+          booking.id,
+          base64,
+          payload.file.name,
+          payload.file.type,
+          session.accessToken,
+        ));
+      }
+      const recordPayload: RecordPaymentPayload =
+        payload.method === 'CASH'
+          ? { method: 'CASH', amount: payload.amount }
+          : payload.method === 'INVOICE_REFERENCE'
+            ? { method: 'INVOICE_REFERENCE', amount: payload.amount, invoiceReference: payload.invoiceReference! }
+            : { method: 'FILE', amount: payload.amount, proofUrl: proofUrl! };
+      const updated = await window.bookingsAPI.recordPayment(booking.id, recordPayload, session.accessToken);
       toast.success('Payment recorded.');
       setBookings((prev) =>
         prev.map((b) =>
@@ -222,136 +442,209 @@ export function Bookings() {
   }
 
   return (
-    <div className="bookings">
-      <div className="bookings-content">
-        <div className="bookings-header">
-          <h1>Bookings</h1>
-          <button className="neumorphic-button" onClick={handleNewBookingClick}>
-            New Booking
-          </button>
+    <div className="relative h-full overflow-hidden">
+      <div className="box-border h-full overflow-y-auto p-8">
+        <div className="screen-header">
+          <h1 className="screen-title">Bookings</h1>
+          <Button onClick={handleNewBookingClick}>New Booking</Button>
         </div>
 
-        {error && <p className="bookings-status bookings-status-error">{error}</p>}
-        {!error && loading && total === 0 && <p className="bookings-status">Loading bookings…</p>}
-        {!error && !loading && total === 0 && <p className="bookings-empty">No bookings yet.</p>}
+        {error && <p className="status-message status-message-error">{error}</p>}
+        {!error && loading && total === 0 && <p className="status-message">Loading bookings…</p>}
+        {!error && !loading && total === 0 && <p className="status-message">No bookings yet.</p>}
 
         {total > 0 && (
           <>
-            <table className="bookings-table">
-              <thead>
-                <tr>
-                  <th>Reference</th>
-                  <th>Tour</th>
-                  <th>Customer</th>
-                  <th>Start Date</th>
-                  <th>Payment</th>
-                  <th>Status</th>
-                  <th aria-hidden="true"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.map((booking) => (
-                  <tr key={booking.id}>
-                    <td className="bookings-table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
-                      {booking.reference}
-                    </td>
-                    <td className="bookings-table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
-                      {booking.tour.title}
-                    </td>
-                    <td className="bookings-table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
-                      {booking.customer.name}
-                    </td>
-                    <td className="bookings-table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
-                      {new Date(booking.startDate).toLocaleDateString()}
-                    </td>
-                    <td className="bookings-table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
-                      <div className="bookings-payment-cell">
-                        <span>
-                          ${Number(booking.amountPaid).toFixed(2)} / ${Number(booking.totalPrice).toFixed(2)}
-                        </span>
-                        <span className={`payment-badge payment-${booking.paymentStatus.toLowerCase()}`}>
-                          {booking.paymentStatus}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="bookings-table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
-                      <span className={`status-badge status-${booking.status.toLowerCase()}`}>{booking.status}</span>
-                    </td>
-                    <td className="bookings-row-actions">
-                      <button
-                        type="button"
-                        className="neumorphic-button bookings-action-button"
-                        onClick={() => handleEditClick(booking.id)}
-                        disabled={rowLoadingId === booking.id || booking.status === 'CANCELLED'}
-                      >
-                        <Pencil size={14} />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="neumorphic-button bookings-action-button"
-                        onClick={() => handleRecordPaymentClick(booking)}
-                        disabled={rowLoadingId === booking.id || booking.status === 'CANCELLED'}
-                      >
-                        <DollarSign size={14} />
-                        Record Payment
-                      </button>
-                      {booking.status === 'PENDING' && (
-                        <button
-                          type="button"
-                          className="neumorphic-button bookings-action-button"
-                          onClick={() => handleConfirmClick(booking)}
-                          disabled={rowLoadingId === booking.id}
-                        >
-                          <CircleCheck size={14} />
-                          Confirm
-                        </button>
-                      )}
-                      {booking.status !== 'CANCELLED' && (
-                        <button
-                          type="button"
-                          className="neumorphic-button bookings-action-button bookings-cancel-button"
-                          onClick={() => handleCancelClick(booking)}
-                          disabled={rowLoadingId === booking.id}
-                        >
-                          <XCircle size={14} />
-                          Cancel
-                        </button>
-                      )}
-                    </td>
-                  </tr>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+              <div className="relative w-full max-w-xs">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                <input
+                  type="text"
+                  className="neu-field py-2.5 pl-9"
+                  placeholder="Search reference, tour, or customer"
+                  aria-label="Search bookings"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-1" role="tablist" aria-label="Filter bookings by status">
+                {STATUS_TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={statusFilter === tab.key}
+                    className={cn('tab-button', statusFilter === tab.key && 'tab-button-active')}
+                    onClick={() => setStatusFilter(tab.key)}
+                  >
+                    {tab.label} ({statusCounts[tab.key]})
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            <div className="table-container">
+              {filteredBookings.length === 0 ? (
+                <p className="status-message m-0">No bookings match your search.</p>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Reference</th>
+                      <th>Tour &amp; Customer</th>
+                      <th>Dates</th>
+                      <th>Payment</th>
+                      <th>Status</th>
+                      <th>
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredBookings.map((booking) => {
+                      const isRowLoading = rowLoadingId === booking.id;
+                      const paid = Number(booking.amountPaid);
+                      const totalPrice = Number(booking.totalPrice);
+                      const paidPct = totalPrice > 0 ? Math.min(100, Math.round((paid / totalPrice) * 100)) : 0;
+                      const { rangeText, singleDay } = formatDateRange(booking.startDate, booking.finishDate);
+                      const { primary, overflow } = getRowActions(booking, {
+                        onView: (b) => handleViewClick(b.id),
+                        onEdit: (b) => handleEditClick(b.id),
+                        onConfirm: handleConfirmClick,
+                        onMarkOngoing: handleMarkOngoingClick,
+                        onRecordPayment: handleRecordPaymentClick,
+                        onCancel: handleCancelClick,
+                      });
+
+                      return (
+                        <tr key={booking.id} className={cn('border-l-4', STATUS_BORDER_CLASS[booking.status])}>
+                          <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
+                            {booking.reference}
+                          </td>
+                          <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-semibold text-heading">{booking.tour.title}</span>
+                              <span className="text-xs text-muted">{booking.tour.id}</span>
+                              <span className="text-secondary">{booking.customer.name}</span>
+                            </div>
+                          </td>
+                          <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
+                            <div className="flex flex-col gap-0.5">
+                              <span>{rangeText}</span>
+                              {singleDay && <span className="text-xs text-muted">Single day</span>}
+                            </div>
+                          </td>
+                          <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
+                            <div className="flex min-w-28 flex-col gap-1.5">
+                              <span>
+                                <span className="font-semibold text-heading">${paid.toFixed(2)}</span>
+                                <span className="text-muted"> / ${totalPrice.toFixed(2)}</span>
+                              </span>
+                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+                                <div className="h-full rounded-full bg-confirmed" style={{ width: `${paidPct}%` }} />
+                              </div>
+                              {(booking.paymentStatus === 'UNPAID' || booking.paymentStatus === 'REFUNDED') && (
+                                <span className={`payment-badge payment-${booking.paymentStatus.toLowerCase()}`}>
+                                  {booking.paymentStatus}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
+                            <div className="flex flex-col items-start gap-1">
+                              <span className={`status-badge status-${booking.status.toLowerCase()}`}>
+                                {booking.status}
+                              </span>
+                              {booking.cancelledAt && (
+                                <span className="text-xs text-muted">
+                                  Cancelled {new Date(booking.cancelledAt).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="row-actions justify-end">
+                              {primary && (
+                                <Button
+                                  size="sm"
+                                  className="action-button"
+                                  onClick={primary.onClick}
+                                  disabled={isRowLoading}
+                                >
+                                  <primary.Icon size={14} />
+                                  {primary.label}
+                                </Button>
+                              )}
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={isRowLoading}
+                                    aria-label={`More actions for ${booking.reference}`}
+                                  >
+                                    <EllipsisVertical size={16} />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent align="end" className="w-48 p-1">
+                                  <div role="menu" className="flex flex-col">
+                                    {overflow.map((action) => (
+                                      <button
+                                        key={action.key}
+                                        type="button"
+                                        role="menuitem"
+                                        disabled={isRowLoading}
+                                        className={cn(
+                                          'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-heading hover:bg-sidebar-hover disabled:cursor-not-allowed disabled:opacity-60',
+                                          action.danger && 'text-error',
+                                        )}
+                                        onClick={action.onClick}
+                                      >
+                                        <action.Icon size={14} />
+                                        {action.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
 
             {totalPages > 1 && (
-              <div className="bookings-pagination">
-                <button
-                  className="neumorphic-button bookings-page-arrow"
+              <div className="pagination">
+                <Button
+                  className="page-arrow"
                   onClick={() => goToPage(page - 1)}
                   disabled={loading || page <= 1}
                   aria-label="Previous page"
                 >
                   <ChevronLeft size={16} />
-                </button>
+                </Button>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                  <button
+                  <Button
                     key={n}
-                    className={`neumorphic-button bookings-page-button ${n === page ? 'bookings-page-button-active' : ''}`}
+                    className={cn('page-button', n === page && 'page-button-active')}
                     onClick={() => goToPage(n)}
                     disabled={loading || n === page}
                   >
                     {n}
-                  </button>
+                  </Button>
                 ))}
-                <button
-                  className="neumorphic-button bookings-page-arrow"
+                <Button
+                  className="page-arrow"
                   onClick={() => goToPage(page + 1)}
                   disabled={loading || page >= totalPages}
                   aria-label="Next page"
                 >
                   <ChevronRight size={16} />
-                </button>
+                </Button>
               </div>
             )}
           </>
@@ -367,6 +660,16 @@ export function Bookings() {
           confirmLabel="Confirm"
           onConfirm={handleConfirmConfirm}
           onCancel={() => setConfirmActionBooking(null)}
+        />
+      )}
+
+      {ongoingActionBooking && (
+        <ConfirmDialog
+          title="Mark booking ongoing"
+          message={`Mark ${ongoingActionBooking.reference} as ongoing? Its details can no longer be edited or cancelled once marked.`}
+          confirmLabel="Mark Ongoing"
+          onConfirm={handleMarkOngoingConfirm}
+          onCancel={() => setOngoingActionBooking(null)}
         />
       )}
 
@@ -408,7 +711,7 @@ export function Bookings() {
         />
       )}
 
-      <div className={`bookings-panel ${mode.kind !== 'idle' ? 'bookings-panel-open' : ''}`}>
+      <div className={cn('slide-panel', mode.kind !== 'idle' && 'slide-panel-open')}>
         {mode.kind === 'view' ? (
           <BookingView key={panelKey} booking={mode.booking} onBack={() => setMode({ kind: 'idle' })} />
         ) : (

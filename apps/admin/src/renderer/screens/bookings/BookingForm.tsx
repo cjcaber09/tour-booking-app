@@ -1,8 +1,13 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { CalendarIcon } from 'lucide-react';
+import { format, parse } from 'date-fns';
 import { useAuth } from '../../AuthContext';
 import { toast } from '../../toast';
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { Calendar } from '../../components/ui/calendar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Button } from '../../components/ui/button';
 import type { CreateBookingPayload, BookingDetail, TourListItem, CustomerSummary } from '../../../preload';
-import './BookingForm.css';
 
 interface BookingFormProps {
   booking?: BookingDetail;
@@ -24,8 +29,14 @@ const INITIAL_STATE: FormState = {
   notes: '',
 };
 
+const DATE_FORMAT = 'yyyy-MM-dd';
+
 function toDateInputValue(iso: string): string {
   return iso.slice(0, 10);
+}
+
+function parseFormDate(value: string): Date {
+  return parse(value, DATE_FORMAT, new Date());
 }
 
 function deriveFormState(booking: BookingDetail | undefined): FormState {
@@ -54,6 +65,7 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
   const [form, setForm] = useState<FormState>(() => deriveFormState(booking));
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const [tours, setTours] = useState<TourListItem[]>([]);
   const [toursLoading, setToursLoading] = useState(false);
@@ -63,6 +75,7 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
   const [customerQuery, setCustomerQuery] = useState('');
   const [customerResults, setCustomerResults] = useState<CustomerSummary[]>([]);
   const [customerSearching, setCustomerSearching] = useState(false);
+  const [isCustomerResultsOpen, setIsCustomerResultsOpen] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ email: '', name: '', phone: '' });
 
   useEffect(() => {
@@ -80,9 +93,11 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
   useEffect(() => {
     if (customerMode !== 'search' || !session || customerQuery.trim().length < 2) {
       setCustomerResults([]);
+      setIsCustomerResultsOpen(false);
       return;
     }
     setCustomerSearching(true);
+    setIsCustomerResultsOpen(true);
     const handle = setTimeout(() => {
       window.customersAPI
         .search(customerQuery.trim(), session.accessToken)
@@ -100,6 +115,7 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
   function handleSelectCustomer(customer: CustomerSummary) {
     setSelectedCustomer(customer);
     setCustomerMode('selected');
+    setIsCustomerResultsOpen(false);
   }
 
   function handleChangeCustomer() {
@@ -138,6 +154,14 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!session) {
+      return;
+    }
+    if (!form.tourId) {
+      setFieldErrors({ tourId: 'Select a tour.' });
+      return;
+    }
+    if (!form.startDate) {
+      setFieldErrors({ startDate: 'Select a booking date.' });
       return;
     }
     if (customerMode === 'search' && !selectedCustomer) {
@@ -183,31 +207,30 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
   }
 
   return (
-    <form className="booking-form" onSubmit={handleSubmit}>
-      <h2>{isEditing ? 'Edit Booking' : 'New Booking'}</h2>
+    <form className="form-grid" onSubmit={handleSubmit}>
+      <h2 className="panel-title">{isEditing ? 'Edit Booking' : 'New Booking'}</h2>
 
-      <label className="booking-field">
+      <label className="form-field">
         <span>Tour</span>
-        <select
-          name="tourId"
-          value={form.tourId}
-          onChange={(e) => update('tourId', e.target.value)}
-          disabled={toursLoading}
-          required
-        >
-          <option value="">{toursLoading ? 'Loading tours…' : 'Select a tour'}</option>
-          {tours.map((tour) => (
-            <option key={tour.id} value={tour.id}>
-              {tour.title}
-            </option>
-          ))}
-        </select>
-        {fieldErrors.tourId && <p className="booking-field-error">{fieldErrors.tourId}</p>}
+        <Select value={form.tourId} onValueChange={(value) => update('tourId', value)} disabled={toursLoading}>
+          <SelectTrigger>
+            <SelectValue placeholder={toursLoading ? 'Loading tours…' : 'Select a tour'} />
+          </SelectTrigger>
+          <SelectContent>
+            {tours.map((tour) => (
+              <SelectItem key={tour.id} value={tour.id}>
+                {tour.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {fieldErrors.tourId && <p className="form-field-error">{fieldErrors.tourId}</p>}
       </label>
 
-      <label className="booking-field">
+      <label className="form-field">
         <span>Participants</span>
         <input
+          className="neu-field"
           name="participants"
           type="number"
           min={1}
@@ -215,66 +238,102 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
           onChange={(e) => update('participants', e.target.value)}
           required
         />
-        {fieldErrors.participants && <p className="booking-field-error">{fieldErrors.participants}</p>}
+        {fieldErrors.participants && <p className="form-field-error">{fieldErrors.participants}</p>}
       </label>
 
-      <label className="booking-field">
-        <span>Start date</span>
-        <input
-          name="startDate"
-          type="date"
-          value={form.startDate}
-          onChange={(e) => update('startDate', e.target.value)}
-          required
-        />
-        {fieldErrors.startDate && <p className="booking-field-error">{fieldErrors.startDate}</p>}
+      <label className="form-field">
+        <span>Booking Date</span>
+        <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+          <PopoverTrigger asChild>
+            <button type="button" className="neu-field flex items-center justify-between text-left">
+              <span className={form.startDate ? '' : 'text-muted'}>
+                {form.startDate ? format(parseFormDate(form.startDate), 'PPP') : 'Select a date'}
+              </span>
+              <CalendarIcon className="h-4 w-4 shrink-0 text-secondary" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0">
+            <Calendar
+              mode="single"
+              selected={form.startDate ? parseFormDate(form.startDate) : undefined}
+              onSelect={(date) => {
+                if (date) {
+                  update('startDate', format(date, DATE_FORMAT));
+                  setIsDatePickerOpen(false);
+                }
+              }}
+              autoFocus
+            />
+          </PopoverContent>
+        </Popover>
+        {fieldErrors.startDate && <p className="form-field-error">{fieldErrors.startDate}</p>}
       </label>
 
-      <div className="booking-field booking-field-full">
+      <div className="form-field col-span-full">
         <span>Customer</span>
 
         {customerMode === 'selected' && selectedCustomer && (
-          <div className="booking-customer-card">
-            <div>
-              <strong>{selectedCustomer.name}</strong>
+          <div className="flex items-center justify-between gap-4 rounded-xl bg-surface p-3 neu-inset">
+            <div className="flex flex-col gap-0.5 text-[0.8125rem] text-secondary">
+              <strong className="text-[0.9375rem] text-heading">{selectedCustomer.name}</strong>
               <span>{selectedCustomer.email}</span>
               {selectedCustomer.phone && <span>{selectedCustomer.phone}</span>}
             </div>
-            <button type="button" className="neumorphic-button" onClick={handleChangeCustomer}>
-              Change
-            </button>
+            <Button onClick={handleChangeCustomer}>Change</Button>
           </div>
         )}
 
         {customerMode === 'search' && (
-          <div className="booking-customer-search">
-            <input
-              type="text"
-              placeholder="Search by name or email…"
-              value={customerQuery}
-              onChange={(e) => setCustomerQuery(e.target.value)}
-            />
-            {customerSearching && <p className="booking-customer-search-status">Searching…</p>}
-            {!customerSearching && customerResults.length > 0 && (
-              <ul className="booking-customer-results">
-                {customerResults.map((customer) => (
-                  <li key={customer.id}>
-                    <button type="button" onClick={() => handleSelectCustomer(customer)}>
-                      {customer.name} — {customer.email}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <button type="button" className="neumorphic-button" onClick={() => setCustomerMode('new')}>
+          <div className="flex flex-col gap-2.5">
+            <Popover open={isCustomerResultsOpen} onOpenChange={setIsCustomerResultsOpen}>
+              <PopoverAnchor asChild>
+                <input
+                  className="neu-field"
+                  type="text"
+                  placeholder="Search by name or email…"
+                  value={customerQuery}
+                  onChange={(e) => setCustomerQuery(e.target.value)}
+                  onFocus={() => {
+                    if (customerResults.length > 0) {
+                      setIsCustomerResultsOpen(true);
+                    }
+                  }}
+                />
+              </PopoverAnchor>
+              <PopoverContent
+                className="max-h-60 w-[var(--radix-popper-anchor-width)] overflow-y-auto p-2"
+                onOpenAutoFocus={(e) => e.preventDefault()}
+              >
+                {customerSearching && <p className="px-1 py-1.5 text-[0.8125rem] text-muted">Searching…</p>}
+                {!customerSearching && customerResults.length === 0 && (
+                  <p className="px-1 py-1.5 text-[0.8125rem] text-muted">No matching customers.</p>
+                )}
+                {!customerSearching && customerResults.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    {customerResults.map((customer) => (
+                      <Button
+                        key={customer.id}
+                        variant="ghost"
+                        className="w-full justify-start rounded-lg px-2.5 py-2 text-left text-[0.8125rem] font-normal text-heading"
+                        onClick={() => handleSelectCustomer(customer)}
+                      >
+                        {customer.name} — {customer.email}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+            <Button className="self-start" onClick={() => setCustomerMode('new')}>
               Add a new customer
-            </button>
+            </Button>
           </div>
         )}
 
         {customerMode === 'new' && (
-          <div className="booking-customer-new">
+          <div className="flex flex-col gap-2.5">
             <input
+              className="neu-field"
               type="text"
               placeholder="Name"
               value={newCustomer.name}
@@ -282,6 +341,7 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
               required
             />
             <input
+              className="neu-field"
               type="email"
               placeholder="Email"
               value={newCustomer.email}
@@ -289,22 +349,24 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
               required
             />
             <input
+              className="neu-field"
               type="text"
               placeholder="Phone (optional)"
               value={newCustomer.phone}
               onChange={(e) => setNewCustomer((prev) => ({ ...prev, phone: e.target.value }))}
             />
-            <button type="button" className="neumorphic-button" onClick={() => setCustomerMode('search')}>
+            <Button className="self-start" onClick={() => setCustomerMode('search')}>
               Search instead
-            </button>
+            </Button>
           </div>
         )}
-        {fieldErrors.customerId && <p className="booking-field-error">{fieldErrors.customerId}</p>}
+        {fieldErrors.customerId && <p className="form-field-error">{fieldErrors.customerId}</p>}
       </div>
 
-      <label className="booking-field booking-field-full">
+      <label className="form-field col-span-full">
         <span>Notes</span>
         <textarea
+          className="neu-field min-h-20 resize-y"
           name="notes"
           placeholder="Optional notes about this booking"
           value={form.notes}
@@ -312,13 +374,13 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
         />
       </label>
 
-      <div className="booking-form-actions">
-        <button type="button" className="neumorphic-button" onClick={onCancel} disabled={submitting}>
+      <div className="form-actions">
+        <Button type="button" onClick={onCancel} disabled={submitting}>
           Cancel
-        </button>
-        <button type="submit" className="neumorphic-button" disabled={submitting}>
+        </Button>
+        <Button type="submit" disabled={submitting}>
           {submitting ? (isEditing ? 'Saving…' : 'Creating…') : isEditing ? 'Save Changes' : 'Create Booking'}
-        </button>
+        </Button>
       </div>
     </form>
   );

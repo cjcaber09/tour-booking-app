@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import './ImageLightbox.css';
+import { cn } from './lib/utils';
+import { Button } from './components/ui/button';
+
+const NAV_BUTTON_CLASS =
+  'absolute rounded-full bg-white/10 p-0 text-white transition-colors duration-150 ease-in-out hover:bg-white/20';
 
 interface ImageLightboxProps {
   images: string[];
@@ -34,15 +38,20 @@ export function ImageLightbox({ images, startIndex, onClose }: ImageLightboxProp
   }, [images.length, onClose]);
 
   return (
-    <div className="image-lightbox-backdrop" onClick={onClose}>
-      <button type="button" className="image-lightbox-close-button" onClick={onClose} aria-label="Close">
+    <div className="fixed inset-0 z-[950] flex items-center justify-center bg-black/85" onClick={onClose}>
+      <Button
+        variant="ghost"
+        className={cn(NAV_BUTTON_CLASS, 'right-6 top-6 h-11 w-11')}
+        onClick={onClose}
+        aria-label="Close"
+      >
         <X size={24} />
-      </button>
+      </Button>
 
       {images.length > 1 && (
-        <button
-          type="button"
-          className="image-lightbox-nav-button image-lightbox-nav-prev"
+        <Button
+          variant="ghost"
+          className={cn(NAV_BUTTON_CLASS, 'left-6 top-1/2 h-14 w-14 -translate-y-1/2')}
           onClick={(e) => {
             e.stopPropagation();
             showPrev();
@@ -50,15 +59,20 @@ export function ImageLightbox({ images, startIndex, onClose }: ImageLightboxProp
           aria-label="Previous image"
         >
           <ChevronLeft size={32} />
-        </button>
+        </Button>
       )}
 
-      <img className="image-lightbox-image" src={images[index]} alt="" onClick={(e) => e.stopPropagation()} />
+      <img
+        className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
+        src={images[index]}
+        alt=""
+        onClick={(e) => e.stopPropagation()}
+      />
 
       {images.length > 1 && (
-        <button
-          type="button"
-          className="image-lightbox-nav-button image-lightbox-nav-next"
+        <Button
+          variant="ghost"
+          className={cn(NAV_BUTTON_CLASS, 'right-6 top-1/2 h-14 w-14 -translate-y-1/2')}
           onClick={(e) => {
             e.stopPropagation();
             showNext();
@@ -66,7 +80,7 @@ export function ImageLightbox({ images, startIndex, onClose }: ImageLightboxProp
           aria-label="Next image"
         >
           <ChevronRight size={32} />
-        </button>
+        </Button>
       )}
     </div>
   );

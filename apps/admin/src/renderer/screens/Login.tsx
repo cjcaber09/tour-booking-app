@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { useAuth } from '../AuthContext';
-import './Login.css';
+import { Button } from '../components/ui/button';
 
 export function LoginScreen() {
   const { login, error } = useAuth();
@@ -21,26 +21,36 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="login-screen">
-      <form className="login-card" onSubmit={handleSubmit}>
-        <h1>Andy Tours Admin</h1>
-        <label className="login-field">
+    <div className="flex h-screen items-center justify-center bg-surface font-body">
+      <form
+        className="flex w-80 flex-col gap-4 rounded-3xl bg-surface p-10 neu-raised-lg"
+        onSubmit={handleSubmit}
+      >
+        <h1 className="m-0 text-center font-display text-2xl tracking-[0.05em] text-heading">Andy Tours Admin</h1>
+        <label className="flex flex-col gap-2 text-sm text-secondary">
           <span>Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input
+            className="neu-field"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
         </label>
-        <label className="login-field">
+        <label className="flex flex-col gap-2 text-sm text-secondary">
           <span>Password</span>
           <input
+            className="neu-field"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
         </label>
-        {error && <p className="login-error">{error}</p>}
-        <button type="submit" className="neumorphic-button" disabled={submitting}>
+        {error && <p className="m-0 text-sm text-error">{error}</p>}
+        <Button type="submit" disabled={submitting}>
           {submitting ? 'Signing in…' : 'Sign in'}
-        </button>
+        </Button>
       </form>
     </div>
   );
