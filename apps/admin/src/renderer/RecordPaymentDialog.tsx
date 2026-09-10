@@ -68,7 +68,7 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
 
   return (
     <div className="dialog-backdrop" onClick={onCancel}>
-      <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
+      <div className="dialog-card w-[min(440px,calc(100vw-3rem))]" onClick={(e) => e.stopPropagation()}>
         <h3 className="dialog-title">Record payment</h3>
         <p className="dialog-message">Recording a payment for {booking.reference}.</p>
 
@@ -81,7 +81,7 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
           <span>${remaining.toFixed(2)}</span>
         </div>
 
-        <label className="mb-2 flex flex-col gap-2 text-sm text-secondary">
+        <label className="mb-4 flex flex-col gap-2 text-sm text-secondary">
           <span>Amount received now</span>
           <input
             className="neu-field"
@@ -95,7 +95,7 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
           />
         </label>
 
-        <div className="mb-2 flex gap-2">
+        <div className="mb-4 flex gap-2">
           <Button
             className={cn('flex-1 flex-col gap-1 py-2 text-xs', method === 'CASH' && 'neu-inset')}
             onClick={() => setMethod('CASH')}

@@ -165,6 +165,56 @@ function getRowActions(
   return { primary, overflow };
 }
 
+function RowActionsMenu({
+  primary,
+  overflow,
+  isRowLoading,
+  menuLabel,
+}: {
+  primary: RowAction | null;
+  overflow: RowAction[];
+  isRowLoading: boolean;
+  menuLabel: string;
+}) {
+  return (
+    <div className="row-actions justify-end">
+      {primary && (
+        <Button size="sm" className="action-button" onClick={primary.onClick} disabled={isRowLoading}>
+          <primary.Icon size={14} />
+          {primary.label}
+        </Button>
+      )}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" disabled={isRowLoading} aria-label={menuLabel}>
+            <EllipsisVertical size={16} />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-48 p-1">
+          <div role="menu" className="flex flex-col">
+            {overflow.map((action) => (
+              <button
+                key={action.key}
+                type="button"
+                role="menuitem"
+                disabled={isRowLoading}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-heading hover:bg-sidebar-hover disabled:cursor-not-allowed disabled:opacity-60',
+                  action.danger && 'text-error',
+                )}
+                onClick={action.onClick}
+              >
+                <action.Icon size={14} />
+                {action.label}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 export function Bookings() {
   const { session } = useAuth();
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
@@ -441,9 +491,35 @@ export function Bookings() {
     fetchBookings(nextPage);
   }
 
+  const bookingRows = filteredBookings.map((booking) => {
+    const paid = Number(booking.amountPaid);
+    const totalPrice = Number(booking.totalPrice);
+    const paidPct = totalPrice > 0 ? Math.min(100, Math.round((paid / totalPrice) * 100)) : 0;
+    const { rangeText, singleDay } = formatDateRange(booking.startDate, booking.finishDate);
+    const { primary, overflow } = getRowActions(booking, {
+      onView: (b) => handleViewClick(b.id),
+      onEdit: (b) => handleEditClick(b.id),
+      onConfirm: handleConfirmClick,
+      onMarkOngoing: handleMarkOngoingClick,
+      onRecordPayment: handleRecordPaymentClick,
+      onCancel: handleCancelClick,
+    });
+    return {
+      booking,
+      isRowLoading: rowLoadingId === booking.id,
+      paid,
+      totalPrice,
+      paidPct,
+      rangeText,
+      singleDay,
+      primary,
+      overflow,
+    };
+  });
+
   return (
     <div className="relative h-full overflow-hidden">
-      <div className="box-border h-full overflow-y-auto p-8">
+      <div className="box-border h-full overflow-y-auto p-4 sm:p-8">
         <div className="screen-header">
           <h1 className="screen-title">Bookings</h1>
           <Button onClick={handleNewBookingClick}>New Booking</Button>
@@ -467,7 +543,7 @@ export function Bookings() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <div className="flex items-center gap-1" role="tablist" aria-label="Filter bookings by status">
+              <div className="flex flex-wrap items-center gap-1" role="tablist" aria-label="Filter bookings by status">
                 {STATUS_TABS.map((tab) => (
                   <button
                     key={tab.key}
@@ -487,71 +563,105 @@ export function Bookings() {
               {filteredBookings.length === 0 ? (
                 <p className="status-message m-0">No bookings match your search.</p>
               ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Reference</th>
-                      <th>Tour &amp; Customer</th>
-                      <th>Dates</th>
-                      <th>Payment</th>
-                      <th>Status</th>
-                      <th>
-                        <span className="sr-only">Actions</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredBookings.map((booking) => {
-                      const isRowLoading = rowLoadingId === booking.id;
-                      const paid = Number(booking.amountPaid);
-                      const totalPrice = Number(booking.totalPrice);
-                      const paidPct = totalPrice > 0 ? Math.min(100, Math.round((paid / totalPrice) * 100)) : 0;
-                      const { rangeText, singleDay } = formatDateRange(booking.startDate, booking.finishDate);
-                      const { primary, overflow } = getRowActions(booking, {
-                        onView: (b) => handleViewClick(b.id),
-                        onEdit: (b) => handleEditClick(b.id),
-                        onConfirm: handleConfirmClick,
-                        onMarkOngoing: handleMarkOngoingClick,
-                        onRecordPayment: handleRecordPaymentClick,
-                        onCancel: handleCancelClick,
-                      });
+                <>
+                  <div className="hidden overflow-x-auto md:block">
+                    <table className="data-table w-full min-w-[860px]">
+                      <thead>
+                        <tr>
+                          <th>Reference</th>
+                          <th>Tour &amp; Customer</th>
+                          <th>Dates</th>
+                          <th>Payment</th>
+                          <th>Status</th>
+                          <th>
+                            <span className="sr-only">Actions</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bookingRows.map(
+                          ({ booking, isRowLoading, paid, totalPrice, paidPct, rangeText, singleDay, primary, overflow }) => (
+                            <tr key={booking.id} className={cn('border-l-4', STATUS_BORDER_CLASS[booking.status])}>
+                              <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
+                                {booking.reference}
+                              </td>
+                              <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-semibold text-heading">{booking.tour.title}</span>
+                                  <span className="text-xs text-muted">{booking.tour.id}</span>
+                                  <span className="text-secondary">{booking.customer.name}</span>
+                                </div>
+                              </td>
+                              <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
+                                <div className="flex flex-col gap-0.5">
+                                  <span>{rangeText}</span>
+                                  {singleDay && <span className="text-xs text-muted">Single day</span>}
+                                </div>
+                              </td>
+                              <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
+                                <div className="flex min-w-28 flex-col gap-1.5">
+                                  <span>
+                                    <span className="font-semibold text-heading">${paid.toFixed(2)}</span>
+                                    <span className="text-muted"> / ${totalPrice.toFixed(2)}</span>
+                                  </span>
+                                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+                                    <div className="h-full rounded-full bg-confirmed" style={{ width: `${paidPct}%` }} />
+                                  </div>
+                                  {(booking.paymentStatus === 'UNPAID' || booking.paymentStatus === 'REFUNDED') && (
+                                    <span className={`payment-badge payment-${booking.paymentStatus.toLowerCase()}`}>
+                                      {booking.paymentStatus}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
+                                <div className="flex flex-col items-start gap-1">
+                                  <span className={`status-badge status-${booking.status.toLowerCase()}`}>
+                                    {booking.status}
+                                  </span>
+                                  {booking.cancelledAt && (
+                                    <span className="text-xs text-muted">
+                                      Cancelled {new Date(booking.cancelledAt).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <RowActionsMenu
+                                  primary={primary}
+                                  overflow={overflow}
+                                  isRowLoading={isRowLoading}
+                                  menuLabel={`More actions for ${booking.reference}`}
+                                />
+                              </td>
+                            </tr>
+                          ),
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
-                      return (
-                        <tr key={booking.id} className={cn('border-l-4', STATUS_BORDER_CLASS[booking.status])}>
-                          <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
-                            {booking.reference}
-                          </td>
-                          <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
+                  <div className="flex flex-col gap-3 md:hidden">
+                    {bookingRows.map(
+                      ({ booking, isRowLoading, paid, totalPrice, paidPct, rangeText, singleDay, primary, overflow }) => (
+                        <div
+                          key={booking.id}
+                          className={cn(
+                            'flex flex-col gap-3 rounded-xl border-l-4 bg-surface p-4 neu-raised-sm',
+                            STATUS_BORDER_CLASS[booking.status],
+                          )}
+                        >
+                          <div
+                            className="flex cursor-pointer items-start justify-between gap-3"
+                            onClick={() => handleViewClick(booking.id)}
+                          >
                             <div className="flex flex-col gap-0.5">
+                              <span className="text-xs text-muted">{booking.reference}</span>
                               <span className="font-semibold text-heading">{booking.tour.title}</span>
                               <span className="text-xs text-muted">{booking.tour.id}</span>
-                              <span className="text-secondary">{booking.customer.name}</span>
+                              <span className="text-sm text-secondary">{booking.customer.name}</span>
                             </div>
-                          </td>
-                          <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
-                            <div className="flex flex-col gap-0.5">
-                              <span>{rangeText}</span>
-                              {singleDay && <span className="text-xs text-muted">Single day</span>}
-                            </div>
-                          </td>
-                          <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
-                            <div className="flex min-w-28 flex-col gap-1.5">
-                              <span>
-                                <span className="font-semibold text-heading">${paid.toFixed(2)}</span>
-                                <span className="text-muted"> / ${totalPrice.toFixed(2)}</span>
-                              </span>
-                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-                                <div className="h-full rounded-full bg-confirmed" style={{ width: `${paidPct}%` }} />
-                              </div>
-                              {(booking.paymentStatus === 'UNPAID' || booking.paymentStatus === 'REFUNDED') && (
-                                <span className={`payment-badge payment-${booking.paymentStatus.toLowerCase()}`}>
-                                  {booking.paymentStatus}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
-                            <div className="flex flex-col items-start gap-1">
+                            <div className="flex flex-col items-end gap-1">
                               <span className={`status-badge status-${booking.status.toLowerCase()}`}>
                                 {booking.status}
                               </span>
@@ -561,59 +671,43 @@ export function Bookings() {
                                 </span>
                               )}
                             </div>
-                          </td>
-                          <td>
-                            <div className="row-actions justify-end">
-                              {primary && (
-                                <Button
-                                  size="sm"
-                                  className="action-button"
-                                  onClick={primary.onClick}
-                                  disabled={isRowLoading}
-                                >
-                                  <primary.Icon size={14} />
-                                  {primary.label}
-                                </Button>
+                          </div>
+
+                          <div className="flex items-center justify-between text-sm">
+                            <span>{rangeText}</span>
+                            {singleDay && <span className="text-xs text-muted">Single day</span>}
+                          </div>
+
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between">
+                              <span>
+                                <span className="font-semibold text-heading">${paid.toFixed(2)}</span>
+                                <span className="text-muted"> / ${totalPrice.toFixed(2)}</span>
+                              </span>
+                              {(booking.paymentStatus === 'UNPAID' || booking.paymentStatus === 'REFUNDED') && (
+                                <span className={`payment-badge payment-${booking.paymentStatus.toLowerCase()}`}>
+                                  {booking.paymentStatus}
+                                </span>
                               )}
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    disabled={isRowLoading}
-                                    aria-label={`More actions for ${booking.reference}`}
-                                  >
-                                    <EllipsisVertical size={16} />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent align="end" className="w-48 p-1">
-                                  <div role="menu" className="flex flex-col">
-                                    {overflow.map((action) => (
-                                      <button
-                                        key={action.key}
-                                        type="button"
-                                        role="menuitem"
-                                        disabled={isRowLoading}
-                                        className={cn(
-                                          'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-heading hover:bg-sidebar-hover disabled:cursor-not-allowed disabled:opacity-60',
-                                          action.danger && 'text-error',
-                                        )}
-                                        onClick={action.onClick}
-                                      >
-                                        <action.Icon size={14} />
-                                        {action.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+                              <div className="h-full rounded-full bg-confirmed" style={{ width: `${paidPct}%` }} />
+                            </div>
+                          </div>
+
+                          <div className="border-t border-border pt-3">
+                            <RowActionsMenu
+                              primary={primary}
+                              overflow={overflow}
+                              isRowLoading={isRowLoading}
+                              menuLabel={`More actions for ${booking.reference}`}
+                            />
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </>
               )}
             </div>
 

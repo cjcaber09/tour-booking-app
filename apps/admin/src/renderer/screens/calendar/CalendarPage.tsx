@@ -80,12 +80,10 @@ export function CalendarPage() {
 
         {!error && !loading && (
           <div className="table-container">
+            <p className="m-0 mb-5 px-1 text-sm font-bold text-heading">{format(today, 'MMMM yyyy')}</p>
             <div className="flex flex-col gap-5">
               {weeks.map((week, weekIndex) => (
                 <div key={weekIndex} className="flex flex-col gap-2">
-                  <p className="m-0 px-1 text-sm font-bold text-heading">
-                    {Array.from(new Set(week.map((day) => format(day, 'MMMM')))).join(' / ')}
-                  </p>
                   <div className="grid grid-cols-7 gap-3">
                     {week.map((day) => {
                       const key = format(day, 'yyyy-MM-dd');
