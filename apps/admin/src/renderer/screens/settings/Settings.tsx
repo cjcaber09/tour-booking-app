@@ -13,9 +13,9 @@ export function Settings() {
   const isAdmin = session?.admin.role === 'ADMIN';
 
   const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
+    ...(isAdmin ? [{ id: 'general' as const, label: 'General' }] : []),
     { id: 'profile', label: 'Profile' },
     { id: 'security', label: 'Security' },
-    ...(isAdmin ? [{ id: 'general' as const, label: 'General' }] : []),
     { id: 'appearance', label: 'Appearance' },
   ];
 

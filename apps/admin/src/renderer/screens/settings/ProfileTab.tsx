@@ -6,14 +6,8 @@ import { cn } from '../../lib/utils';
 import { fileToBase64 } from '../../lib/file';
 import { Button } from '../../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { ROLE_LABELS, ROLE_OPTIONS } from '../../lib/roles';
 import type { AdminRole, UpdateProfilePayload } from '../../../preload';
-
-const ROLE_OPTIONS: { value: AdminRole; label: string }[] = [
-  { value: 'ADMIN', label: 'Admin' },
-  { value: 'LEAD_GUIDE', label: 'Lead Guide' },
-  { value: 'GUIDE', label: 'Guide' },
-];
-const ROLE_LABELS: Record<AdminRole, string> = { ADMIN: 'Admin', LEAD_GUIDE: 'Lead Guide', GUIDE: 'Guide' };
 
 const DROPZONE_CLASS =
   'flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface px-4 py-6 text-center text-sm text-muted transition-colors duration-150 ease-in-out hover:border-muted';

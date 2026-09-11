@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { cn } from '../lib/utils';
+import { ROLE_LABELS } from '../lib/roles';
 import { Button } from '../components/ui/button';
 import { ConfirmDialog } from '../ConfirmDialog';
 import {
@@ -29,17 +30,18 @@ const NAV_ITEMS: { view: View; label: string; Icon: typeof DashboardIcon }[] = [
   { view: 'bookings', label: 'Bookings', Icon: BookingsIcon },
   { view: 'calendar', label: 'Calendar', Icon: CalendarIcon },
   { view: 'tours', label: 'Tours', Icon: ToursIcon },
-  { view: 'settings', label: 'Settings', Icon: SettingsIcon },
   { view: 'users', label: 'Users', Icon: UsersIcon },
   // import.meta.env.DEV is statically replaced at build time, so Vite/Rollup constant-folds
   // and tree-shakes this branch out of packaged (electron-forge package/make) builds entirely
   // — not just hidden, genuinely absent from production.
   ...(import.meta.env.DEV ? [{ view: 'audit' as const, label: 'Audit', Icon: AuditIcon }] : []),
+  { view: 'settings', label: 'Settings', Icon: SettingsIcon },
 ];
 
 export function Sidebar({ activeView, onNavigate, collapsed, onToggleCollapsed }: SidebarProps) {
-  const { logout } = useAuth();
+  const { logout, session } = useAuth();
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  const admin = session?.admin;
 
   const navItemClass = (active: boolean) =>
     cn(
@@ -73,6 +75,30 @@ export function Sidebar({ activeView, onNavigate, collapsed, onToggleCollapsed }
           </Button>
         ))}
       </nav>
+
+      {admin && (
+        <div
+          className={cn(
+            'mb-2 flex items-center gap-3 overflow-hidden whitespace-nowrap px-1',
+            collapsed && 'justify-center px-0',
+          )}
+          title={collapsed ? `${admin.name} — ${ROLE_LABELS[admin.role]}` : undefined}
+        >
+          {admin.avatarUrl ? (
+            <img className="h-9 w-9 shrink-0 rounded-full object-cover" src={admin.avatarUrl} alt="" />
+          ) : (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-shadow-dark)] text-xs font-semibold text-heading opacity-70">
+              {admin.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          {!collapsed && (
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate text-sm font-semibold text-heading">{admin.name}</span>
+              <span className="truncate text-xs text-secondary">{ROLE_LABELS[admin.role]}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-2 border-t border-border pt-4">
         <Button

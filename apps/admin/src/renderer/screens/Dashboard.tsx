@@ -1,14 +1,82 @@
+import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../AuthContext';
 import { useAppSettings } from '../AppSettingsContext';
-import { stats, revenueThisMonth, bookingsTrend, recentBookings } from './mockAnalytics';
+import { stats, revenueThisMonth, bookingsTrend } from './mockAnalytics';
+import type { BookingListItem } from '../../preload';
+
+const UPCOMING_WINDOW_DAYS = 2;
+const RECENT_BOOKINGS_LIMIT = 5;
 
 export function Dashboard() {
-  const { formatCurrency } = useAppSettings();
+  const { session } = useAuth();
+  const { formatCurrency, formatDate } = useAppSettings();
   const maxBookings = Math.max(...bookingsTrend.map((point) => point.bookings));
   const statCards = [
     stats[0],
     { label: 'Revenue (This Month)', value: formatCurrency(revenueThisMonth) },
     ...stats.slice(1),
   ];
+
+  const [recentBookings, setRecentBookings] = useState<BookingListItem[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [recentError, setRecentError] = useState('');
+
+  const [upcomingBookings, setUpcomingBookings] = useState<BookingListItem[]>([]);
+  const [loadingUpcoming, setLoadingUpcoming] = useState(false);
+  const [upcomingError, setUpcomingError] = useState('');
+
+  const fetchRecentBookings = useCallback(async () => {
+    if (!session) {
+      return;
+    }
+    setLoadingRecent(true);
+    setRecentError('');
+    try {
+      const result = await window.bookingsAPI.list(1, 50, {}, session.accessToken);
+      const sorted = [...result.bookings].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      setRecentBookings(sorted.slice(0, RECENT_BOOKINGS_LIMIT));
+    } catch (err) {
+      setRecentError(err instanceof Error ? err.message : 'Could not load recent bookings.');
+    } finally {
+      setLoadingRecent(false);
+    }
+  }, [session]);
+
+  const fetchUpcomingBookings = useCallback(async () => {
+    if (!session) {
+      return;
+    }
+    setLoadingUpcoming(true);
+    setUpcomingError('');
+    try {
+      const result = await window.bookingsAPI.list(
+        1,
+        100,
+        { status: 'CONFIRMED', paymentStatus: 'PAID' },
+        session.accessToken,
+      );
+      const now = Date.now();
+      const windowEnd = now + UPCOMING_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+      const upcoming = result.bookings
+        .filter((booking) => {
+          const start = new Date(booking.startDate).getTime();
+          return start >= now && start <= windowEnd;
+        })
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      setUpcomingBookings(upcoming);
+    } catch (err) {
+      setUpcomingError(err instanceof Error ? err.message : 'Could not load upcoming bookings.');
+    } finally {
+      setLoadingUpcoming(false);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    fetchRecentBookings();
+    fetchUpcomingBookings();
+  }, [fetchRecentBookings, fetchUpcomingBookings]);
 
   return (
     <div className="box-border p-8">
@@ -37,29 +105,71 @@ export function Dashboard() {
       </section>
 
       <section className="mb-8 table-container">
-        <h2 className="m-0 mb-4 font-display text-xl tracking-[0.03em] text-heading">Recent bookings</h2>
-        <table className="w-full border-collapse text-sm text-heading">
-          <thead>
-            <tr>
-              <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Customer</th>
-              <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Tour</th>
-              <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Date</th>
-              <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentBookings.map((booking) => (
-              <tr key={`${booking.customer}-${booking.date}`}>
-                <td className="border-b border-border-strong p-3">{booking.customer}</td>
-                <td className="border-b border-border-strong p-3">{booking.tour}</td>
-                <td className="border-b border-border-strong p-3">{booking.date}</td>
-                <td className="border-b border-border-strong p-3">
-                  <span className={`status-badge status-${booking.status.toLowerCase()}`}>{booking.status}</span>
-                </td>
+        <h2 className="m-0 mb-4 font-display text-xl tracking-[0.03em] text-heading">
+          Upcoming bookings (next {UPCOMING_WINDOW_DAYS} days)
+        </h2>
+        {upcomingError && <p className="status-message status-message-error">{upcomingError}</p>}
+        {!upcomingError && loadingUpcoming && upcomingBookings.length === 0 && (
+          <p className="status-message">Loading…</p>
+        )}
+        {!upcomingError && !loadingUpcoming && upcomingBookings.length === 0 && (
+          <p className="status-message">No confirmed & paid bookings starting in the next {UPCOMING_WINDOW_DAYS} days.</p>
+        )}
+        {!upcomingError && upcomingBookings.length > 0 && (
+          <table className="w-full border-collapse text-sm text-heading">
+            <thead>
+              <tr>
+                <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Customer</th>
+                <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Tour</th>
+                <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Starts</th>
+                <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Participants</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {upcomingBookings.map((booking) => (
+                <tr key={booking.id}>
+                  <td className="border-b border-border-strong p-3">{booking.customer.name}</td>
+                  <td className="border-b border-border-strong p-3">{booking.tour.title}</td>
+                  <td className="border-b border-border-strong p-3">{formatDate(booking.startDate)}</td>
+                  <td className="border-b border-border-strong p-3">{booking.participants}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="mb-8 table-container">
+        <h2 className="m-0 mb-4 font-display text-xl tracking-[0.03em] text-heading">Recent bookings</h2>
+        {recentError && <p className="status-message status-message-error">{recentError}</p>}
+        {!recentError && loadingRecent && recentBookings.length === 0 && <p className="status-message">Loading…</p>}
+        {!recentError && !loadingRecent && recentBookings.length === 0 && (
+          <p className="status-message">No bookings yet.</p>
+        )}
+        {!recentError && recentBookings.length > 0 && (
+          <table className="w-full border-collapse text-sm text-heading">
+            <thead>
+              <tr>
+                <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Customer</th>
+                <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Tour</th>
+                <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Date</th>
+                <th className="border-b border-border px-3 py-2 text-left font-semibold text-muted">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentBookings.map((booking) => (
+                <tr key={booking.id}>
+                  <td className="border-b border-border-strong p-3">{booking.customer.name}</td>
+                  <td className="border-b border-border-strong p-3">{booking.tour.title}</td>
+                  <td className="border-b border-border-strong p-3">{formatDate(booking.startDate)}</td>
+                  <td className="border-b border-border-strong p-3">
+                    <span className={`status-badge status-${booking.status.toLowerCase()}`}>{booking.status}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     </div>
   );

@@ -23,6 +23,11 @@ import type {
   ChangePasswordPayload,
   UploadAvatarResult,
   AdminRole,
+  AdminListItem,
+  CreateAdminPayload,
+  CreateAdminResult,
+  UpdateAdminPayload,
+  ListAdminsResult,
 } from '../preload';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
@@ -420,4 +425,50 @@ export async function backendChangePassword(payload: ChangePasswordPayload, acce
     const body = await res.json();
     throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
   }
+}
+
+export async function backendListAdmins(page: number, limit: number, accessToken: string): Promise<ListAdminsResult> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const res = await fetch(`${BACKEND_URL}/admins?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendCreateAdmin(payload: CreateAdminPayload, accessToken: string): Promise<CreateAdminResult> {
+  const res = await fetch(`${BACKEND_URL}/admins`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendUpdateAdmin(
+  id: string,
+  payload: UpdateAdminPayload,
+  accessToken: string,
+): Promise<AdminListItem> {
+  const res = await fetch(`${BACKEND_URL}/admins/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendDeleteAdmin(id: string, accessToken: string): Promise<{ id: string }> {
+  const res = await fetch(`${BACKEND_URL}/admins/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
 }

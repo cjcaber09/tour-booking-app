@@ -24,6 +24,11 @@ import type {
   UpdateProfilePayload,
   ChangePasswordPayload,
   UploadAvatarResult,
+  AdminListItem,
+  CreateAdminPayload,
+  CreateAdminResult,
+  UpdateAdminPayload,
+  ListAdminsResult,
 } from '../preload';
 
 declare global {
@@ -98,6 +103,12 @@ declare global {
         accessToken: string,
       ) => Promise<UploadAvatarResult>;
       changePassword: (payload: ChangePasswordPayload, accessToken: string) => Promise<void>;
+    };
+    adminsAPI: {
+      list: (page: number, limit: number, accessToken: string) => Promise<ListAdminsResult>;
+      create: (payload: CreateAdminPayload, accessToken: string) => Promise<CreateAdminResult>;
+      update: (id: string, payload: UpdateAdminPayload, accessToken: string) => Promise<AdminListItem>;
+      delete: (id: string, accessToken: string) => Promise<{ id: string }>;
     };
   }
 }

@@ -19,6 +19,7 @@ enum AdminRole {
   ADMIN
   LEAD_GUIDE
   GUIDE
+  STAFF
 }
 
 enum BookingStatus {

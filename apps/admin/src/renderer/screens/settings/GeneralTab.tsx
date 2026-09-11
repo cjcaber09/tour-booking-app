@@ -6,6 +6,7 @@ import { cn } from '../../lib/utils';
 import { fileToBase64 } from '../../lib/file';
 import { Button } from '../../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Popover, PopoverAnchor, PopoverContent } from '../../components/ui/popover';
 import type { AppSettingsDto, UpdateAppSettingsPayload } from '../../../preload';
 
 // Mirrors apps/backend/src/routes/settings.schema.ts's const arrays — no shared
@@ -52,6 +53,8 @@ function GeneralTabForm({ settings }: { settings: AppSettingsDto }) {
   const [appName, setAppName] = useState(settings.appName);
   const [companyName, setCompanyName] = useState(settings.companyName);
   const [timezone, setTimezone] = useState(settings.timezone);
+  const [timezoneQuery, setTimezoneQuery] = useState(settings.timezone);
+  const [isTimezoneOpen, setIsTimezoneOpen] = useState(false);
   const [dateFormat, setDateFormat] = useState(settings.dateFormat);
   const [timeFormat, setTimeFormat] = useState(settings.timeFormat);
   const [language, setLanguage] = useState(settings.language);
@@ -72,7 +75,20 @@ function GeneralTabForm({ settings }: { settings: AppSettingsDto }) {
   // canonical IANA zone names but excludes the "UTC" special case, even though it's
   // a valid timeZone value and this model's own Prisma default.
   const timezoneOptions = useMemo(() => ['UTC', ...Intl.supportedValuesOf('timeZone')], []);
+  const filteredTimezoneOptions = useMemo(() => {
+    const q = timezoneQuery.trim().toLowerCase();
+    if (!q) {
+      return timezoneOptions;
+    }
+    return timezoneOptions.filter((tz) => tz.toLowerCase().includes(q));
+  }, [timezoneOptions, timezoneQuery]);
   const currentLogoUrl = logoPreviewUrl || settings.logoUrl || '';
+
+  function handleSelectTimezone(tz: string) {
+    setTimezone(tz);
+    setTimezoneQuery(tz);
+    setIsTimezoneOpen(false);
+  }
 
   function processLogoFile(file: File) {
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
@@ -220,22 +236,60 @@ function GeneralTabForm({ settings }: { settings: AppSettingsDto }) {
         {logoError && <p className="form-field-error">{logoError}</p>}
       </div>
 
-      <label className="form-field">
+      <div className="form-field">
         <span>Timezone</span>
-        <Select value={timezone} onValueChange={setTimezone}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {timezoneOptions.map((tz) => (
-              <SelectItem key={tz} value={tz}>
-                {tz}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover
+          open={isTimezoneOpen}
+          onOpenChange={(open) => {
+            setIsTimezoneOpen(open);
+            if (!open) {
+              // Discard an unselected, partially-typed query so the field reflects the
+              // actually-saved timezone again rather than whatever text was left behind.
+              setTimezoneQuery(timezone);
+            }
+          }}
+        >
+          <PopoverAnchor asChild>
+            <input
+              className="neu-field"
+              type="text"
+              placeholder="Search timezones…"
+              value={timezoneQuery}
+              onChange={(e) => {
+                setTimezoneQuery(e.target.value);
+                setIsTimezoneOpen(true);
+              }}
+              onFocus={() => setIsTimezoneOpen(true)}
+            />
+          </PopoverAnchor>
+          <PopoverContent
+            className="max-h-60 w-[var(--radix-popper-anchor-width)] overflow-y-auto p-2"
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            {filteredTimezoneOptions.length === 0 ? (
+              <p className="px-1 py-1.5 text-[0.8125rem] text-muted">No matching timezones.</p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {filteredTimezoneOptions.map((tz) => (
+                  <Button
+                    key={tz}
+                    type="button"
+                    variant="ghost"
+                    className={cn(
+                      'w-full justify-start rounded-lg px-2.5 py-2 text-left text-[0.8125rem] font-normal text-heading',
+                      tz === timezone && 'neu-inset',
+                    )}
+                    onClick={() => handleSelectTimezone(tz)}
+                  >
+                    {tz}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
         {fieldErrors.timezone && <p className="form-field-error">{fieldErrors.timezone}</p>}
-      </label>
+      </div>
 
       <label className="form-field">
         <span>Currency</span>
