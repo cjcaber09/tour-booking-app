@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../AuthContext';
 import { useAppSettings } from '../../AppSettingsContext';
+import { ROLE_LABELS } from '../../lib/roles';
 import type { AuditEntry } from '../../../preload';
 
 export function AuditPage() {
   const { session } = useAuth();
-  const { formatTime } = useAppSettings();
+  const { formatDate, formatTime } = useAppSettings();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -49,6 +50,7 @@ export function AuditPage() {
             <table className="data-table w-full">
               <thead>
                 <tr>
+                  <th>Date</th>
                   <th>Time</th>
                   <th>Method</th>
                   <th>Path</th>
@@ -60,12 +62,20 @@ export function AuditPage() {
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.id}>
+                    <td>{formatDate(entry.timestamp)}</td>
                     <td>{formatTime(entry.timestamp)}</td>
                     <td>{entry.method}</td>
                     <td>{entry.path}</td>
                     <td>{entry.status}</td>
                     <td>{entry.durationMs} ms</td>
-                    <td>{entry.adminId ?? '—'}</td>
+                    <td>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-heading">{entry.adminName ?? 'System'}</span>
+                        {entry.adminName && entry.adminRole && (
+                          <span className="text-xs text-muted">{ROLE_LABELS[entry.adminRole]}</span>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

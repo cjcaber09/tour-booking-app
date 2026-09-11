@@ -32,6 +32,10 @@ import {
   backendUpdateProfile,
   backendUploadAvatar,
   backendChangePassword,
+  backendListAdmins,
+  backendCreateAdmin,
+  backendUpdateAdmin,
+  backendDeleteAdmin,
 } from './main/backend-client';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -317,6 +321,38 @@ ipcMain.handle('profile:change-password', async (_event, payload, accessToken: s
     return await backendChangePassword(payload, accessToken);
   } catch (err) {
     throw new Error(err instanceof Error ? err.message : 'change password failed');
+  }
+});
+
+ipcMain.handle('admins:list', async (_event, page: number, limit: number, accessToken: string) => {
+  try {
+    return await backendListAdmins(page, limit, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'list failed');
+  }
+});
+
+ipcMain.handle('admins:create', async (_event, payload, accessToken: string) => {
+  try {
+    return await backendCreateAdmin(payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'create failed');
+  }
+});
+
+ipcMain.handle('admins:update', async (_event, id: string, payload, accessToken: string) => {
+  try {
+    return await backendUpdateAdmin(id, payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'update failed');
+  }
+});
+
+ipcMain.handle('admins:delete', async (_event, id: string, accessToken: string) => {
+  try {
+    return await backendDeleteAdmin(id, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'delete failed');
   }
 });
 

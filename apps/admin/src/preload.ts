@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-export type AdminRole = 'ADMIN' | 'LEAD_GUIDE' | 'GUIDE';
+export type AdminRole = 'ADMIN' | 'LEAD_GUIDE' | 'GUIDE' | 'STAFF';
 
 export interface AdminSummary {
   id: string;
@@ -279,6 +279,8 @@ export interface AuditEntry {
   status: number;
   durationMs: number;
   adminId: string | null;
+  adminName: string | null;
+  adminRole: AdminRole | null;
 }
 
 export interface ListAuditEntriesResult {
@@ -361,4 +363,45 @@ contextBridge.exposeInMainWorld('profileAPI', {
     ipcRenderer.invoke('profile:upload-avatar', fileBase64, filename, mimetype, accessToken),
   changePassword: (payload: ChangePasswordPayload, accessToken: string): Promise<void> =>
     ipcRenderer.invoke('profile:change-password', payload, accessToken),
+});
+
+export interface AdminListItem extends AdminSummary {
+  isActive: boolean;
+}
+
+export interface CreateAdminPayload {
+  name: string;
+  email: string;
+  role: AdminRole;
+  phone?: string | null;
+}
+
+export interface CreateAdminResult extends AdminListItem {
+  temporaryPassword: string;
+}
+
+export interface UpdateAdminPayload {
+  name?: string;
+  phone?: string | null;
+  role?: AdminRole;
+  isActive?: boolean;
+}
+
+export interface ListAdminsResult {
+  admins: AdminListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+contextBridge.exposeInMainWorld('adminsAPI', {
+  list: (page: number, limit: number, accessToken: string): Promise<ListAdminsResult> =>
+    ipcRenderer.invoke('admins:list', page, limit, accessToken),
+  create: (payload: CreateAdminPayload, accessToken: string): Promise<CreateAdminResult> =>
+    ipcRenderer.invoke('admins:create', payload, accessToken),
+  update: (id: string, payload: UpdateAdminPayload, accessToken: string): Promise<AdminListItem> =>
+    ipcRenderer.invoke('admins:update', id, payload, accessToken),
+  delete: (id: string, accessToken: string): Promise<{ id: string }> =>
+    ipcRenderer.invoke('admins:delete', id, accessToken),
 });

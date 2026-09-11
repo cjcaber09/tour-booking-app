@@ -1,14 +1,15 @@
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { useAppSettings } from '../../AppSettingsContext';
-import { ROLE_BADGE_CLASS, ROLE_LABELS, type MockUser } from './mockUsers';
+import type { AdminListItem } from '../../../preload';
+import { ROLE_BADGE_CLASS, ROLE_LABELS } from '../../lib/roles';
 
 interface UserViewProps {
-  user: MockUser;
+  admin: AdminListItem;
   onBack: () => void;
 }
 
-export function UserView({ user, onBack }: UserViewProps) {
+export function UserView({ admin, onBack }: UserViewProps) {
   const { formatDate, formatDateTime } = useAppSettings();
 
   return (
@@ -18,47 +19,47 @@ export function UserView({ user, onBack }: UserViewProps) {
         Back
       </Button>
 
-      <h2 className="panel-title">{user.name}</h2>
+      <h2 className="panel-title">{admin.name}</h2>
 
-      {user.avatarUrl ? (
-        <img className="h-16 w-16 rounded-full object-cover neu-raised-md" src={user.avatarUrl} alt="Avatar" />
+      {admin.avatarUrl ? (
+        <img className="h-16 w-16 rounded-full object-cover neu-raised-md" src={admin.avatarUrl} alt="Avatar" />
       ) : (
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-shadow-dark)] text-lg font-semibold text-heading opacity-70">
-          {user.name.charAt(0).toUpperCase()}
+          {admin.name.charAt(0).toUpperCase()}
         </div>
       )}
 
       <div className="detail-grid">
         <div className="detail-field">
           <span className="detail-label">Role</span>
-          <span className={`status-badge ${ROLE_BADGE_CLASS[user.role]}`}>{ROLE_LABELS[user.role]}</span>
+          <span className={`status-badge ${ROLE_BADGE_CLASS[admin.role]}`}>{ROLE_LABELS[admin.role]}</span>
         </div>
 
         <div className="detail-field">
           <span className="detail-label">Status</span>
-          <span className={`status-badge ${user.status === 'ACTIVE' ? 'status-confirmed' : 'status-cancelled'}`}>
-            {user.status === 'ACTIVE' ? 'Active' : 'Suspended'}
+          <span className={`status-badge ${admin.isActive ? 'status-confirmed' : 'status-cancelled'}`}>
+            {admin.isActive ? 'Active' : 'Suspended'}
           </span>
         </div>
 
         <div className="detail-field">
           <span className="detail-label">Email</span>
-          <span>{user.email}</span>
+          <span>{admin.email}</span>
         </div>
 
         <div className="detail-field">
           <span className="detail-label">Phone</span>
-          <span>{user.phone ?? '—'}</span>
+          <span>{admin.phone ?? '—'}</span>
         </div>
 
         <div className="detail-field">
           <span className="detail-label">Member since</span>
-          <span>{formatDate(user.createdAt)}</span>
+          <span>{formatDate(admin.createdAt)}</span>
         </div>
 
         <div className="detail-field">
           <span className="detail-label">Last login</span>
-          <span>{user.lastLoginAt ? formatDateTime(user.lastLoginAt) : '—'}</span>
+          <span>{admin.lastLoginAt ? formatDateTime(admin.lastLoginAt) : '—'}</span>
         </div>
       </div>
     </div>
