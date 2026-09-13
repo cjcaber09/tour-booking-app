@@ -19,6 +19,7 @@ const ADMIN_SELECT = {
   isActive: true,
   createdAt: true,
   lastLoginAt: true,
+  recoveryRequestedAt: true,
 } as const;
 
 adminsRouter.get('/', requireAuth, requireAdminRole('ADMIN'), async (req, res, next) => {
@@ -29,16 +30,22 @@ adminsRouter.get('/', requireAuth, requireAdminRole('ADMIN'), async (req, res, n
       return;
     }
 
-    const { page, limit, role, isActive, q } = parsed.data;
+    const { page, limit, role, isActive, hasRecoveryRequest, q } = parsed.data;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.AdminWhereInput = {
+    // Respects every other filter but not isActive, so every status tab's count
+    // reflects "how many match the rest of this filter" regardless of which tab is
+    // currently selected.
+    const facetWhere: Prisma.AdminWhereInput = {
       ...(role !== undefined ? { role } : {}),
-      ...(isActive !== undefined ? { isActive } : {}),
+      ...(hasRecoveryRequest !== undefined
+        ? { recoveryRequestedAt: hasRecoveryRequest ? { not: null } : null }
+        : {}),
       ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] } : {}),
     };
+    const where: Prisma.AdminWhereInput = { ...facetWhere, ...(isActive !== undefined ? { isActive } : {}) };
 
-    const [admins, total] = await Promise.all([
+    const [admins, total, activeCount, suspendedCount] = await Promise.all([
       prisma.admin.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -47,6 +54,8 @@ adminsRouter.get('/', requireAuth, requireAdminRole('ADMIN'), async (req, res, n
         select: ADMIN_SELECT,
       }),
       prisma.admin.count({ where }),
+      prisma.admin.count({ where: { ...facetWhere, isActive: true } }),
+      prisma.admin.count({ where: { ...facetWhere, isActive: false } }),
     ]);
 
     res.json({
@@ -55,6 +64,7 @@ adminsRouter.get('/', requireAuth, requireAdminRole('ADMIN'), async (req, res, n
       page,
       limit,
       totalPages: Math.max(1, Math.ceil(total / limit)),
+      statusCounts: { ALL: activeCount + suspendedCount, ACTIVE: activeCount, SUSPENDED: suspendedCount },
     });
   } catch (err) {
     next(err);
@@ -121,6 +131,39 @@ adminsRouter.patch('/:id', requireAuth, requireAdminRole('ADMIN'), async (req, r
     });
 
     res.json(admin);
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+      res.status(404).json({ error: 'admin not found' });
+      return;
+    }
+    next(err);
+  }
+});
+
+adminsRouter.post('/:id/reset-password', requireAuth, requireAdminRole('ADMIN'), async (req, res, next) => {
+  try {
+    if (req.params.id === req.adminId) {
+      res.status(400).json({ error: 'use /profile/change-password to reset your own password' });
+      return;
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await hashPassword(temporaryPassword);
+
+    // Independent writes with no data dependency on each other — run concurrently rather than
+    // sequentially, matching this repo's own Promise.all convention (see /auth/login).
+    const [admin] = await Promise.all([
+      prisma.admin.update({
+        where: { id: req.params.id },
+        data: { passwordHash, recoveryRequestedAt: null },
+        select: ADMIN_SELECT,
+      }),
+      // Forces any existing session for this admin to die immediately, matching the exact
+      // revoke-on-password-change pattern already used by /profile/change-password.
+      prisma.refreshToken.deleteMany({ where: { adminId: req.params.id } }),
+    ]);
+
+    res.status(200).json({ ...admin, temporaryPassword });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
       res.status(404).json({ error: 'admin not found' });

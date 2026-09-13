@@ -9,6 +9,7 @@ import type {
   BookingListFilters,
   ListBookingsResult,
   CalendarBookingsResult,
+  BookingsStatsResult,
   BookingDetail,
   CreateBookingPayload,
   UpdateBookingPayload,
@@ -16,6 +17,15 @@ import type {
   RecordPaymentPayload,
   UploadPaymentProofResult,
   SearchCustomersResult,
+  ListCustomersResult,
+  CustomerDetail,
+  CreateCustomerPayload,
+  UpdateCustomerPayload,
+  CustomerListItem,
+  ListCategoriesResult,
+  CreateCategoryPayload,
+  UpdateCategoryPayload,
+  CategorySummary,
   ListAuditEntriesResult,
   AppSettingsDto,
   UpdateAppSettingsPayload,
@@ -37,6 +47,7 @@ declare global {
       login: (email: string, password: string) => Promise<AdminSession>;
       getSession: () => Promise<AdminSession | null>;
       logout: () => Promise<void>;
+      requestRecovery: (email: string) => Promise<void>;
     };
     toursAPI: {
       create: (payload: CreateTourPayload, accessToken: string) => Promise<unknown>;
@@ -69,6 +80,7 @@ declare global {
       ongoing: (id: string, accessToken: string) => Promise<unknown>;
       cancel: (id: string, payload: CancelBookingPayload, accessToken: string) => Promise<unknown>;
       calendar: (accessToken: string) => Promise<CalendarBookingsResult>;
+      stats: (accessToken: string) => Promise<BookingsStatsResult>;
       recordPayment: (id: string, payload: RecordPaymentPayload, accessToken: string) => Promise<BookingDetail>;
       uploadPaymentProof: (
         id: string,
@@ -80,6 +92,17 @@ declare global {
     };
     customersAPI: {
       search: (q: string, accessToken: string) => Promise<SearchCustomersResult>;
+      list: (page: number, limit: number, q: string, accessToken: string) => Promise<ListCustomersResult>;
+      get: (id: string, accessToken: string) => Promise<CustomerDetail>;
+      create: (payload: CreateCustomerPayload, accessToken: string) => Promise<CustomerListItem>;
+      update: (id: string, payload: UpdateCustomerPayload, accessToken: string) => Promise<CustomerListItem>;
+      delete: (id: string, accessToken: string) => Promise<{ id: string }>;
+    };
+    categoriesAPI: {
+      list: (page: number, limit: number, accessToken: string) => Promise<ListCategoriesResult>;
+      create: (payload: CreateCategoryPayload, accessToken: string) => Promise<CategorySummary>;
+      update: (id: string, payload: UpdateCategoryPayload, accessToken: string) => Promise<CategorySummary>;
+      delete: (id: string, accessToken: string) => Promise<{ id: string }>;
     };
     auditAPI: {
       list: (accessToken: string) => Promise<ListAuditEntriesResult>;
@@ -109,6 +132,8 @@ declare global {
       create: (payload: CreateAdminPayload, accessToken: string) => Promise<CreateAdminResult>;
       update: (id: string, payload: UpdateAdminPayload, accessToken: string) => Promise<AdminListItem>;
       delete: (id: string, accessToken: string) => Promise<{ id: string }>;
+      resetPassword: (id: string, accessToken: string) => Promise<CreateAdminResult>;
+      countRecoveryRequests: (accessToken: string) => Promise<{ total: number }>;
     };
   }
 }

@@ -1,56 +1,27 @@
-import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
-import {
-  ChevronLeft,
-  ChevronRight,
-  Pencil,
-  Trash2,
-  PauseCircle,
-  PlayCircle,
-  Eye,
-  Search,
-  EllipsisVertical,
-  type LucideProps,
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Pencil, Trash2, PauseCircle, PlayCircle, Eye, Search } from 'lucide-react';
 import { TourForm } from './TourForm';
 import { TourView } from './TourView';
-import { useAuth } from '../../AuthContext';
-import { useAppSettings } from '../../AppSettingsContext';
+import { CategoriesDialog } from './CategoriesDialog';
+import { useAuth } from '../../states/authStore';
+import { useAppSettings } from '../../states/appSettingsStore';
+import { useToursListStore, type ToursStatusFilter } from '../../states/toursListStore';
+import { useDebouncedRefetch } from '../../lib/useDebouncedRefetch';
 import { toast } from '../../toast';
 import { LoadingOverlay } from '../../LoadingOverlay';
 import { ConfirmDialog } from '../../ConfirmDialog';
-import type { TourListItem, TourDetail } from '../../../preload';
+import { Pagination } from '../../Pagination';
+import { RowActionsMenu, type RowAction } from '../../RowActionsMenu';
+import { cleanIpcErrorMessage } from '../../lib/ipc';
+import type { TourListItem } from '../../../preload';
 import { cn } from '../../lib/utils';
 import { Button } from '../../components/ui/button';
-import { Popover, PopoverTrigger, PopoverContent } from '../../components/ui/popover';
 
-type Mode =
-  | { kind: 'idle' }
-  | { kind: 'create' }
-  | { kind: 'edit'; tour: TourDetail }
-  | { kind: 'view'; tour: TourDetail };
-const PAGE_SIZE = 10;
-
-function cleanIpcErrorMessage(message: string): string {
-  return message
-    .replace(/^Error invoking remote method '[^']+':\s*/, '')
-    .replace(/^Error:\s*/, '');
-}
-
-type StatusTabKey = 'ALL' | 'ACTIVE' | 'INACTIVE';
-
-const STATUS_TABS: { key: StatusTabKey; label: string }[] = [
+const STATUS_TABS: { key: ToursStatusFilter; label: string }[] = [
   { key: 'ALL', label: 'All' },
   { key: 'ACTIVE', label: 'Active' },
   { key: 'INACTIVE', label: 'Inactive' },
 ];
-
-interface RowAction {
-  key: string;
-  label: string;
-  Icon: ComponentType<LucideProps>;
-  onClick: () => void;
-  danger?: boolean;
-}
 
 interface RowActionHandlers {
   onView: (tour: TourListItem) => void;
@@ -76,67 +47,49 @@ function getRowActions(tour: TourListItem, handlers: RowActionHandlers): { prima
 export function Tours() {
   const { session } = useAuth();
   const { formatCurrency, formatDate } = useAppSettings();
-  const [mode, setMode] = useState<Mode>({ kind: 'idle' });
-  const [panelKey, setPanelKey] = useState(0);
-  const [rowLoadingId, setRowLoadingId] = useState<string | null>(null);
+  const {
+    items: tours,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    statusFilter,
+    statusCounts,
+    mode,
+    panelKey,
+    rowLoadingId,
+    fetchPage,
+    setSearch,
+    setStatusFilter,
+    openPanel,
+    closePanel,
+    setRowLoadingId,
+    updateItem,
+    removeItem,
+  } = useToursListStore();
+
   const [confirmDeleteTour, setConfirmDeleteTour] = useState<TourListItem | null>(null);
-  const [tours, setTours] = useState<TourListItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusTabKey>('ALL');
+  const [confirmSuspendTour, setConfirmSuspendTour] = useState<TourListItem | null>(null);
+  const [categoriesDialogOpen, setCategoriesDialogOpen] = useState(false);
 
-  const statusCounts = useMemo(
-    () => ({
-      ALL: tours.length,
-      ACTIVE: tours.filter((t) => t.isActive).length,
-      INACTIVE: tours.filter((t) => !t.isActive).length,
-    }),
-    [tours],
-  );
-
-  const filteredTours = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return tours.filter((tour) => {
-      if (statusFilter === 'ACTIVE' && !tour.isActive) return false;
-      if (statusFilter === 'INACTIVE' && tour.isActive) return false;
-      if (!q) return true;
-      return tour.title.toLowerCase().includes(q) || tour.slug.toLowerCase().includes(q);
-    });
-  }, [tours, search, statusFilter]);
-
-  const fetchTours = useCallback(
-    async (targetPage: number) => {
-      if (!session) {
-        return;
-      }
-      setLoading(true);
-      setError('');
-      try {
-        const result = await window.toursAPI.list(targetPage, PAGE_SIZE, session.accessToken);
-        setTours(result.tours);
-        setTotal(result.total);
-        setPage(result.page);
-        setTotalPages(result.totalPages);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not load tours.');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [session],
-  );
+  // Search and status are sent to the backend (see toursListStore's fetchPage) so
+  // they apply across the whole dataset, not just whatever page is currently loaded —
+  // `tours` below is already the filtered/paginated result, nothing further to filter client-side.
+  const hasActiveFilter = search.trim() !== '' || statusFilter !== 'ALL';
 
   useEffect(() => {
-    fetchTours(1);
-  }, [fetchTours]);
+    fetchPage(useToursListStore.getState().page);
+    return () => {
+      useToursListStore.getState().closePanel();
+    };
+  }, []);
+
+  useDebouncedRefetch(fetchPage, [search, statusFilter]);
 
   function handleNewTourClick() {
-    setPanelKey((k) => k + 1);
-    setMode({ kind: 'create' });
+    openPanel({ kind: 'create' });
   }
 
   async function handleEditClick(id: string) {
@@ -146,8 +99,7 @@ export function Tours() {
     setRowLoadingId(id);
     try {
       const tour = await window.toursAPI.get(id, session.accessToken);
-      setPanelKey((k) => k + 1);
-      setMode({ kind: 'edit', tour });
+      openPanel({ kind: 'edit', tour });
     } catch (err) {
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not load tour.');
     } finally {
@@ -162,8 +114,7 @@ export function Tours() {
     setRowLoadingId(id);
     try {
       const tour = await window.toursAPI.get(id, session.accessToken);
-      setPanelKey((k) => k + 1);
-      setMode({ kind: 'view', tour });
+      openPanel({ kind: 'view', tour });
     } catch (err) {
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not load tour.');
     } finally {
@@ -171,15 +122,37 @@ export function Tours() {
     }
   }
 
-  async function handleSuspendToggle(tour: TourListItem) {
-    if (!session || rowLoadingId) {
+  function handleSuspendToggleClick(tour: TourListItem) {
+    if (rowLoadingId) {
+      return;
+    }
+    // Suspending (taking a tour offline) is confirmed; re-activating isn't — matches
+    // the rest of the screen's pattern of only gating the state-degrading direction.
+    if (tour.isActive) {
+      setConfirmSuspendTour(tour);
+    } else {
+      void runSuspendToggle(tour);
+    }
+  }
+
+  async function handleConfirmSuspend() {
+    if (!confirmSuspendTour) {
+      return;
+    }
+    const tour = confirmSuspendTour;
+    setConfirmSuspendTour(null);
+    await runSuspendToggle(tour);
+  }
+
+  async function runSuspendToggle(tour: TourListItem) {
+    if (!session) {
       return;
     }
     setRowLoadingId(tour.id);
     try {
       await window.toursAPI.update(tour.id, { isActive: !tour.isActive }, session.accessToken);
       toast.success(tour.isActive ? 'Tour suspended.' : 'Tour activated.');
-      setTours((prev) => prev.map((t) => (t.id === tour.id ? { ...t, isActive: !t.isActive } : t)));
+      updateItem(tour.id, (t) => ({ ...t, isActive: !t.isActive }));
     } catch (err) {
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not update tour status.');
     } finally {
@@ -205,12 +178,9 @@ export function Tours() {
       await window.toursAPI.delete(tour.id, session.accessToken);
       toast.success('Tour deleted.');
       if (tours.length === 1 && page > 1) {
-        await fetchTours(page - 1);
+        await fetchPage(page - 1);
       } else {
-        const newTotal = total - 1;
-        setTours((prev) => prev.filter((t) => t.id !== tour.id));
-        setTotal(newTotal);
-        setTotalPages(Math.max(1, Math.ceil(newTotal / PAGE_SIZE)));
+        removeItem(tour.id);
       }
     } catch (err) {
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not delete tour.');
@@ -221,15 +191,8 @@ export function Tours() {
 
   function handleSaved() {
     const wasEditing = mode.kind === 'edit';
-    setMode({ kind: 'idle' });
-    fetchTours(wasEditing ? page : 1);
-  }
-
-  function goToPage(nextPage: number) {
-    if (nextPage < 1 || nextPage > totalPages || nextPage === page) {
-      return;
-    }
-    fetchTours(nextPage);
+    closePanel();
+    fetchPage(wasEditing ? page : 1);
   }
 
   return (
@@ -237,14 +200,19 @@ export function Tours() {
       <div className="box-border h-full overflow-y-auto p-8">
         <div className="screen-header">
           <h1 className="screen-title">Tours</h1>
-          <Button onClick={handleNewTourClick}>New Tour</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setCategoriesDialogOpen(true)}>
+              Categories
+            </Button>
+            <Button onClick={handleNewTourClick}>New Tour</Button>
+          </div>
         </div>
 
         {error && <p className="status-message status-message-error">{error}</p>}
-        {!error && loading && total === 0 && <p className="status-message">Loading tours…</p>}
-        {!error && !loading && total === 0 && <p className="status-message">No tours created yet.</p>}
+        {!error && loading && total === 0 && !hasActiveFilter && <p className="status-message">Loading tours…</p>}
+        {!error && !loading && total === 0 && !hasActiveFilter && <p className="status-message">No tours created yet.</p>}
 
-        {total > 0 && (
+        {(total > 0 || hasActiveFilter) && (
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
               <div className="relative w-full max-w-xs">
@@ -275,7 +243,7 @@ export function Tours() {
             </div>
 
             <div className="table-container">
-              {filteredTours.length === 0 ? (
+              {tours.length === 0 ? (
                 <p className="status-message m-0">No tours match your search.</p>
               ) : (
                 <table className="data-table">
@@ -291,14 +259,14 @@ export function Tours() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredTours.map((tour) => {
+                    {tours.map((tour) => {
                       const isRowLoading = rowLoadingId === tour.id;
                       const price = Number(tour.price);
                       const discount = tour.priceDiscount != null ? Number(tour.priceDiscount) : null;
                       const { primary, overflow } = getRowActions(tour, {
                         onView: (t) => handleViewClick(t.id),
                         onEdit: (t) => handleEditClick(t.id),
-                        onSuspendToggle: handleSuspendToggle,
+                        onSuspendToggle: handleSuspendToggleClick,
                         onDelete: handleDeleteClick,
                       });
 
@@ -343,49 +311,12 @@ export function Tours() {
                             {formatDate(tour.createdAt)}
                           </td>
                           <td>
-                            <div className="row-actions justify-end">
-                              <Button
-                                size="sm"
-                                className="action-button"
-                                onClick={primary.onClick}
-                                disabled={isRowLoading}
-                              >
-                                <primary.Icon size={14} />
-                                {primary.label}
-                              </Button>
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    disabled={isRowLoading}
-                                    aria-label={`More actions for ${tour.title}`}
-                                  >
-                                    <EllipsisVertical size={16} />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent align="end" className="w-44 p-1">
-                                  <div role="menu" className="flex flex-col">
-                                    {overflow.map((action) => (
-                                      <button
-                                        key={action.key}
-                                        type="button"
-                                        role="menuitem"
-                                        disabled={isRowLoading}
-                                        className={cn(
-                                          'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-heading hover:bg-sidebar-hover disabled:cursor-not-allowed disabled:opacity-60',
-                                          action.danger && 'text-error',
-                                        )}
-                                        onClick={action.onClick}
-                                      >
-                                        <action.Icon size={14} />
-                                        {action.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            </div>
+                            <RowActionsMenu
+                              primary={primary}
+                              overflow={overflow}
+                              disabled={isRowLoading}
+                              ariaLabel={`More actions for ${tour.title}`}
+                            />
                           </td>
                         </tr>
                       );
@@ -395,36 +326,7 @@ export function Tours() {
               )}
             </div>
 
-            {totalPages > 1 && (
-              <div className="pagination">
-                <Button
-                  className="page-arrow"
-                  onClick={() => goToPage(page - 1)}
-                  disabled={loading || page <= 1}
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft size={16} />
-                </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                  <Button
-                    key={n}
-                    className={cn('page-button', n === page && 'page-button-active')}
-                    onClick={() => goToPage(n)}
-                    disabled={loading || n === page}
-                  >
-                    {n}
-                  </Button>
-                ))}
-                <Button
-                  className="page-arrow"
-                  onClick={() => goToPage(page + 1)}
-                  disabled={loading || page >= totalPages}
-                  aria-label="Next page"
-                >
-                  <ChevronRight size={16} />
-                </Button>
-              </div>
-            )}
+            <Pagination page={page} totalPages={totalPages} loading={loading} onPageChange={fetchPage} />
           </>
         )}
       </div>
@@ -442,14 +344,27 @@ export function Tours() {
         />
       )}
 
+      {confirmSuspendTour && (
+        <ConfirmDialog
+          title="Suspend tour"
+          message={`Suspend "${confirmSuspendTour.title}"? It will be hidden from new bookings until reactivated.`}
+          confirmLabel="Suspend"
+          danger
+          onConfirm={handleConfirmSuspend}
+          onCancel={() => setConfirmSuspendTour(null)}
+        />
+      )}
+
+      {categoriesDialogOpen && <CategoriesDialog onClose={() => setCategoriesDialogOpen(false)} />}
+
       <div className={cn('slide-panel', mode.kind !== 'idle' && 'slide-panel-open')}>
         {mode.kind === 'view' ? (
-          <TourView key={panelKey} tour={mode.tour} onBack={() => setMode({ kind: 'idle' })} />
+          <TourView key={panelKey} tour={mode.tour} onBack={closePanel} />
         ) : (
           <TourForm
             key={panelKey}
             tour={mode.kind === 'edit' ? mode.tour : undefined}
-            onCancel={() => setMode({ kind: 'idle' })}
+            onCancel={closePanel}
             onSaved={handleSaved}
           />
         )}

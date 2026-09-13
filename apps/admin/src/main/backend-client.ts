@@ -4,10 +4,12 @@ import type {
   UploadImageResult,
   UploadImagesResult,
   ListToursResult,
+  TourListFilters,
   TourDetail,
   BookingListFilters,
   ListBookingsResult,
   CalendarBookingsResult,
+  BookingsStatsResult,
   BookingDetail,
   CreateBookingPayload,
   UpdateBookingPayload,
@@ -15,6 +17,15 @@ import type {
   RecordPaymentPayload,
   UploadPaymentProofResult,
   SearchCustomersResult,
+  ListCustomersResult,
+  CustomerDetail,
+  CreateCustomerPayload,
+  UpdateCustomerPayload,
+  CustomerListItem,
+  ListCategoriesResult,
+  CreateCategoryPayload,
+  UpdateCategoryPayload,
+  CategorySummary,
   ListAuditEntriesResult,
   AppSettingsDto,
   UpdateAppSettingsPayload,
@@ -28,6 +39,7 @@ import type {
   CreateAdminResult,
   UpdateAdminPayload,
   ListAdminsResult,
+  AdminListFilters,
 } from '../preload';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
@@ -77,6 +89,18 @@ export async function backendLogout(refreshToken: string): Promise<void> {
   });
 }
 
+// Fire-and-forget, same as backendLogout above: the backend deliberately returns an identical
+// 204 whether or not the email exists (no information leak), and the Login screen shows the
+// same generic confirmation message regardless of outcome — there's nothing for the caller to
+// branch on.
+export async function backendRequestRecovery(email: string): Promise<void> {
+  await fetch(`${BACKEND_URL}/auth/request-recovery`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+}
+
 export async function backendMe(accessToken: string): Promise<AdminSummary> {
   const res = await fetch(`${BACKEND_URL}/auth/me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -97,8 +121,15 @@ export async function backendCreateTour(payload: CreateTourPayload, accessToken:
   return body;
 }
 
-export async function backendListTours(page: number, limit: number, accessToken: string): Promise<ListToursResult> {
+export async function backendListTours(
+  page: number,
+  limit: number,
+  filters: TourListFilters,
+  accessToken: string,
+): Promise<ListToursResult> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (filters.q) params.set('q', filters.q);
+  if (filters.isActive !== undefined) params.set('isActive', String(filters.isActive));
   const res = await fetch(`${BACKEND_URL}/tours?${params.toString()}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -106,14 +137,14 @@ export async function backendListTours(page: number, limit: number, accessToken:
 }
 
 export async function backendGetTour(id: string, accessToken: string): Promise<TourDetail> {
-  const res = await fetch(`${BACKEND_URL}/tours/${id}`, {
+  const res = await fetch(`${BACKEND_URL}/tours/${encodeURIComponent(id)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   return parseJsonOrThrow(res);
 }
 
 export async function backendUpdateTour(id: string, payload: UpdateTourPayload, accessToken: string): Promise<unknown> {
-  const res = await fetch(`${BACKEND_URL}/tours/${id}`, {
+  const res = await fetch(`${BACKEND_URL}/tours/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(payload),
@@ -126,7 +157,7 @@ export async function backendUpdateTour(id: string, payload: UpdateTourPayload, 
 }
 
 export async function backendDeleteTour(id: string, accessToken: string): Promise<void> {
-  const res = await fetch(`${BACKEND_URL}/tours/${id}`, {
+  const res = await fetch(`${BACKEND_URL}/tours/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -180,8 +211,15 @@ export async function backendGetBookingsCalendar(accessToken: string): Promise<C
   return parseJsonOrThrow(res);
 }
 
+export async function backendGetBookingsStats(accessToken: string): Promise<BookingsStatsResult> {
+  const res = await fetch(`${BACKEND_URL}/bookings/stats`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
 export async function backendGetBooking(id: string, accessToken: string): Promise<BookingDetail> {
-  const res = await fetch(`${BACKEND_URL}/bookings/${id}`, {
+  const res = await fetch(`${BACKEND_URL}/bookings/${encodeURIComponent(id)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   return parseJsonOrThrow(res);
@@ -205,7 +243,7 @@ export async function backendUpdateBooking(
   payload: UpdateBookingPayload,
   accessToken: string,
 ): Promise<unknown> {
-  const res = await fetch(`${BACKEND_URL}/bookings/${id}`, {
+  const res = await fetch(`${BACKEND_URL}/bookings/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(payload),
@@ -218,7 +256,7 @@ export async function backendUpdateBooking(
 }
 
 export async function backendConfirmBooking(id: string, accessToken: string): Promise<unknown> {
-  const res = await fetch(`${BACKEND_URL}/bookings/${id}/confirm`, {
+  const res = await fetch(`${BACKEND_URL}/bookings/${encodeURIComponent(id)}/confirm`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -230,7 +268,7 @@ export async function backendConfirmBooking(id: string, accessToken: string): Pr
 }
 
 export async function backendMarkBookingOngoing(id: string, accessToken: string): Promise<unknown> {
-  const res = await fetch(`${BACKEND_URL}/bookings/${id}/ongoing`, {
+  const res = await fetch(`${BACKEND_URL}/bookings/${encodeURIComponent(id)}/ongoing`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -246,7 +284,7 @@ export async function backendCancelBooking(
   payload: CancelBookingPayload,
   accessToken: string,
 ): Promise<unknown> {
-  const res = await fetch(`${BACKEND_URL}/bookings/${id}/cancel`, {
+  const res = await fetch(`${BACKEND_URL}/bookings/${encodeURIComponent(id)}/cancel`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(payload),
@@ -263,7 +301,7 @@ export async function backendRecordPayment(
   payload: RecordPaymentPayload,
   accessToken: string,
 ): Promise<unknown> {
-  const res = await fetch(`${BACKEND_URL}/bookings/${id}/payments`, {
+  const res = await fetch(`${BACKEND_URL}/bookings/${encodeURIComponent(id)}/payments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(payload),
@@ -286,7 +324,7 @@ export async function backendUploadPaymentProof(
   const formData = new FormData();
   formData.append('proof', new Blob([buffer], { type: mimetype }), filename);
 
-  const res = await fetch(`${BACKEND_URL}/bookings/${id}/payments/upload-proof`, {
+  const res = await fetch(`${BACKEND_URL}/bookings/${encodeURIComponent(id)}/payments/upload-proof`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
     body: formData,
@@ -301,6 +339,121 @@ export async function backendUploadPaymentProof(
 export async function backendSearchCustomers(q: string, accessToken: string): Promise<SearchCustomersResult> {
   const params = new URLSearchParams({ q });
   const res = await fetch(`${BACKEND_URL}/customers?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendListCustomers(
+  page: number,
+  limit: number,
+  q: string,
+  accessToken: string,
+): Promise<ListCustomersResult> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (q) params.set('q', q);
+  const res = await fetch(`${BACKEND_URL}/customers?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendGetCustomer(id: string, accessToken: string): Promise<CustomerDetail> {
+  const res = await fetch(`${BACKEND_URL}/customers/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendCreateCustomer(
+  payload: CreateCustomerPayload,
+  accessToken: string,
+): Promise<CustomerListItem> {
+  const res = await fetch(`${BACKEND_URL}/customers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendUpdateCustomer(
+  id: string,
+  payload: UpdateCustomerPayload,
+  accessToken: string,
+): Promise<CustomerListItem> {
+  const res = await fetch(`${BACKEND_URL}/customers/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendDeleteCustomer(id: string, accessToken: string): Promise<{ id: string }> {
+  const res = await fetch(`${BACKEND_URL}/customers/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendListCategories(
+  page: number,
+  limit: number,
+  accessToken: string,
+): Promise<ListCategoriesResult> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const res = await fetch(`${BACKEND_URL}/categories?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendCreateCategory(
+  payload: CreateCategoryPayload,
+  accessToken: string,
+): Promise<CategorySummary> {
+  const res = await fetch(`${BACKEND_URL}/categories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendUpdateCategory(
+  id: string,
+  payload: UpdateCategoryPayload,
+  accessToken: string,
+): Promise<CategorySummary> {
+  const res = await fetch(`${BACKEND_URL}/categories/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendDeleteCategory(id: string, accessToken: string): Promise<{ id: string }> {
+  const res = await fetch(`${BACKEND_URL}/categories/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   return parseJsonOrThrow(res);
@@ -427,8 +580,15 @@ export async function backendChangePassword(payload: ChangePasswordPayload, acce
   }
 }
 
-export async function backendListAdmins(page: number, limit: number, accessToken: string): Promise<ListAdminsResult> {
+export async function backendListAdmins(
+  page: number,
+  limit: number,
+  filters: AdminListFilters,
+  accessToken: string,
+): Promise<ListAdminsResult> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (filters.q) params.set('q', filters.q);
+  if (filters.isActive !== undefined) params.set('isActive', String(filters.isActive));
   const res = await fetch(`${BACKEND_URL}/admins?${params.toString()}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -453,7 +613,7 @@ export async function backendUpdateAdmin(
   payload: UpdateAdminPayload,
   accessToken: string,
 ): Promise<AdminListItem> {
-  const res = await fetch(`${BACKEND_URL}/admins/${id}`, {
+  const res = await fetch(`${BACKEND_URL}/admins/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(payload),
@@ -466,9 +626,30 @@ export async function backendUpdateAdmin(
 }
 
 export async function backendDeleteAdmin(id: string, accessToken: string): Promise<{ id: string }> {
-  const res = await fetch(`${BACKEND_URL}/admins/${id}`, {
+  const res = await fetch(`${BACKEND_URL}/admins/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   return parseJsonOrThrow(res);
+}
+
+export async function backendResetAdminPassword(id: string, accessToken: string): Promise<CreateAdminResult> {
+  const res = await fetch(`${BACKEND_URL}/admins/${encodeURIComponent(id)}/reset-password`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(JSON.stringify({ status: res.status, error: body.error, details: body.details }));
+  }
+  return body;
+}
+
+export async function backendCountAdminRecoveryRequests(accessToken: string): Promise<{ total: number }> {
+  const params = new URLSearchParams({ page: '1', limit: '1', hasRecoveryRequest: 'true' });
+  const res = await fetch(`${BACKEND_URL}/admins?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = await parseJsonOrThrow(res);
+  return { total: body.total };
 }

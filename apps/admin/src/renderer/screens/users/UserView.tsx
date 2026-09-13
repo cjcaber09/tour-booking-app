@@ -1,6 +1,6 @@
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '../../components/ui/button';
-import { useAppSettings } from '../../AppSettingsContext';
+import { useAppSettings } from '../../states/appSettingsStore';
 import type { AdminListItem } from '../../../preload';
 import { ROLE_BADGE_CLASS, ROLE_LABELS } from '../../lib/roles';
 

@@ -1,6 +1,7 @@
 import { Prisma, PaymentStatus, BookingStatus } from '@prisma/client';
 import { prisma } from './prisma';
 import { generateUniqueBookingReference } from './bookingReference';
+import { normalizeEmail } from './customers';
 
 export class BookingServiceError extends Error {
   constructor(
@@ -41,26 +42,45 @@ export async function resolveCustomer(input: CustomerInput) {
   // overwriting it from a new booking's typed-in details would retroactively change what
   // old bookings display. A typo'd or slightly different name on a repeat booking is just
   // ignored in favor of the stored record.
-  const existing = await prisma.customer.findUnique({ where: { email: input.customer!.email } });
+  const email = normalizeEmail(input.customer!.email);
+  const existing = await prisma.customer.findUnique({ where: { email } });
   if (existing) {
     return existing;
   }
   return prisma.customer.create({
     data: {
-      email: input.customer!.email,
+      email,
       name: input.customer!.name,
       phone: input.customer!.phone,
     },
   });
 }
 
-export async function computeTotalPrice(tourId: string, participants: number, requireActiveTour: boolean) {
+export async function computeTotalPrice(
+  tourId: string,
+  participants: number,
+  startDate: Date,
+  requireActiveTour: boolean,
+) {
   const tour = await prisma.tour.findUnique({ where: { id: tourId } });
   if (!tour) {
     throw new BookingServiceError(400, 'tour not found');
   }
   if (requireActiveTour && !tour.isActive) {
     throw new BookingServiceError(400, 'tour is not active');
+  }
+  if (tour.maxGroupSize != null && participants > tour.maxGroupSize) {
+    throw new BookingServiceError(400, `participants exceeds this tour's maximum group size of ${tour.maxGroupSize}`);
+  }
+  // Empty startDates means the tour has no fixed departure schedule — unrestricted, since
+  // there's currently no admin UI to ever populate this field (every tour has startDates: []
+  // by construction), so treating empty as "restricted" would make every existing tour
+  // unbookable.
+  if (tour.startDates.length > 0) {
+    const offered = tour.startDates.some((d) => dateOnly(d).getTime() === dateOnly(startDate).getTime());
+    if (!offered) {
+      throw new BookingServiceError(400, "startDate is not one of this tour's offered start dates");
+    }
   }
   const unitPrice = tour.priceDiscount ?? tour.price;
   const totalPrice = unitPrice.mul(participants);
@@ -123,6 +143,28 @@ export function getBookingCalendarWindow(now: Date = new Date()): { from: Date; 
   return { from, to };
 }
 
+// Precomputed windows for the dashboard stats endpoint: today's start (for "upcoming"), the
+// current calendar month's [start, end) bounds (for "this month" counts/sums), and the last 7
+// calendar days oldest-to-newest (today last) for the bookings trend.
+export function getBookingsStatsWindows(now: Date = new Date()) {
+  const todayStart = dateOnly(now);
+
+  const monthStart = dateOnly(now);
+  monthStart.setDate(1);
+  const monthEnd = new Date(monthStart);
+  monthEnd.setMonth(monthEnd.getMonth() + 1); // exclusive upper bound
+
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const start = dateOnly(now);
+    start.setDate(start.getDate() - (6 - i));
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { date: start.toISOString().slice(0, 10), start, end };
+  });
+
+  return { todayStart, monthStart, monthEnd, last7Days };
+}
+
 type BookingWithTourDuration = { startDate: Date; tour: { duration: number | null } };
 
 export function serializeBooking<T extends BookingWithTourDuration>(booking: T): T & { finishDate: string } {
@@ -179,7 +221,7 @@ export async function createBooking(params: CreateBookingParams) {
   // with no data dependency on each other, so they're run concurrently rather than
   // sequentially — each one otherwise pays full round-trip latency to the DB on its own.
   const [{ tour, totalPrice }, customer, reference] = await Promise.all([
-    computeTotalPrice(params.tourId, params.participants, params.requireActiveTour),
+    computeTotalPrice(params.tourId, params.participants, params.startDate, params.requireActiveTour),
     resolveCustomer(params.customerInput),
     generateUniqueBookingReference(),
   ]);

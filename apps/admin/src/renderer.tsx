@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './renderer/App';
-import { initTheme } from './renderer/theme';
+import { initTheme } from './renderer/states/themeStore';
 import './index.css';
 
 initTheme();

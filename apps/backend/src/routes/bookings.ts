@@ -15,6 +15,7 @@ import {
   bookingListSelect,
   finalizeBookingList,
   getBookingCalendarWindow,
+  getBookingsStatsWindows,
   BookingServiceError,
   resolveCustomer,
   computeTotalPrice,
@@ -39,23 +40,28 @@ bookingsRouter.get('/', requireAuth, async (req, res, next) => {
     const { page, limit, status, paymentStatus, tourId, customerId, q } = parsed.data;
     const skip = (page - 1) * limit;
 
-    const where = {
-      ...(status ? { status } : {}),
+    const searchClause = q
+      ? {
+          OR: [
+            { reference: { contains: q, mode: 'insensitive' as const } },
+            { tour: { title: { contains: q, mode: 'insensitive' as const } } },
+            { customer: { name: { contains: q, mode: 'insensitive' as const } } },
+            { customer: { email: { contains: q, mode: 'insensitive' as const } } },
+          ],
+        }
+      : {};
+    // Respects every other filter but not status, so every status tab's count
+    // reflects "how many match the rest of this filter" regardless of which tab is
+    // currently selected.
+    const facetWhere = {
       ...(paymentStatus ? { paymentStatus } : {}),
       ...(tourId ? { tourId } : {}),
       ...(customerId ? { customerId } : {}),
-      ...(q
-        ? {
-            OR: [
-              { reference: { contains: q, mode: 'insensitive' as const } },
-              { customer: { name: { contains: q, mode: 'insensitive' as const } } },
-              { customer: { email: { contains: q, mode: 'insensitive' as const } } },
-            ],
-          }
-        : {}),
+      ...searchClause,
     };
+    const where = { ...facetWhere, ...(status ? { status } : {}) };
 
-    const [rawBookings, total] = await Promise.all([
+    const [rawBookings, total, pendingCount, confirmedCount, cancelledCount, allCount] = await Promise.all([
       prisma.booking.findMany({
         where,
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
@@ -64,6 +70,10 @@ bookingsRouter.get('/', requireAuth, async (req, res, next) => {
         select: bookingListSelect,
       }),
       prisma.booking.count({ where }),
+      prisma.booking.count({ where: { ...facetWhere, status: 'PENDING' } }),
+      prisma.booking.count({ where: { ...facetWhere, status: 'CONFIRMED' } }),
+      prisma.booking.count({ where: { ...facetWhere, status: 'CANCELLED' } }),
+      prisma.booking.count({ where: facetWhere }),
     ]);
 
     res.json({
@@ -72,6 +82,9 @@ bookingsRouter.get('/', requireAuth, async (req, res, next) => {
       page,
       limit,
       totalPages: Math.max(1, Math.ceil(total / limit)),
+      // Only the 4 statuses the admin UI's tabs actually show (ONGOING/COMPLETED
+      // have no tab) — ALL is every status combined, not just these 3.
+      statusCounts: { ALL: allCount, PENDING: pendingCount, CONFIRMED: confirmedCount, CANCELLED: cancelledCount },
     });
   } catch (err) {
     next(err);
@@ -91,6 +104,43 @@ bookingsRouter.get('/calendar', requireAuth, async (req, res, next) => {
       bookings: await finalizeBookingList(rawBookings),
       from: from.toISOString(),
       to: to.toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+bookingsRouter.get('/stats', requireAuth, async (req, res, next) => {
+  try {
+    const { todayStart, monthStart, monthEnd, last7Days } = getBookingsStatsWindows();
+
+    const [totalBookings, upcomingBookings, cancellationsThisMonth, revenueAgg, ...trendCounts] =
+      await Promise.all([
+        prisma.booking.count(),
+        prisma.booking.count({
+          where: { status: { not: 'CANCELLED' }, startDate: { gte: todayStart } },
+        }),
+        prisma.booking.count({
+          where: { status: 'CANCELLED', cancelledAt: { gte: monthStart, lt: monthEnd } },
+        }),
+        prisma.payment.aggregate({
+          _sum: { amount: true },
+          where: { createdAt: { gte: monthStart, lt: monthEnd } },
+        }),
+        ...last7Days.map((d) =>
+          prisma.booking.count({ where: { createdAt: { gte: d.start, lt: d.end } } }),
+        ),
+      ]);
+
+    res.json({
+      totalBookings,
+      upcomingBookings,
+      cancellationsThisMonth,
+      // _sum.amount is null when no payments matched — wrap explicitly so this always
+      // serializes as a Decimal-string, matching every other money field in this codebase,
+      // instead of a plain 0 on a zero-payment month.
+      revenueThisMonth: new Prisma.Decimal(revenueAgg._sum.amount ?? 0),
+      bookingsTrend: last7Days.map((d, i) => ({ date: d.date, count: trendCounts[i] })),
     });
   } catch (err) {
     next(err);
@@ -178,10 +228,13 @@ bookingsRouter.patch('/:id', requireAuth, async (req, res, next) => {
     // don't depend on each other's result, so they're resolved concurrently rather than
     // as two sequential round trips.
     const totalPricePromise =
-      tourId !== undefined || participants !== undefined
-        ? computeTotalPrice(tourId ?? existing.tourId, participants ?? existing.participants, false).then(
-            (r) => r.totalPrice,
-          )
+      tourId !== undefined || participants !== undefined || startDate !== undefined
+        ? computeTotalPrice(
+            tourId ?? existing.tourId,
+            participants ?? existing.participants,
+            new Date(startDate ?? existing.startDate),
+            false,
+          ).then((r) => r.totalPrice)
         : Promise.resolve(existing.totalPrice);
 
     const resolvedCustomerIdPromise =

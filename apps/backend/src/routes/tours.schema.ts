@@ -40,6 +40,13 @@ export type UpdateTourInput = z.infer<typeof updateTourSchema>;
 export const listToursQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(10),
+  q: z.string().optional(),
+  // z.coerce.boolean() just does JS's Boolean(value), so the query string "false" (a
+  // non-empty string) would coerce to true — parse the literal strings explicitly instead.
+  isActive: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
 });
 
 export type ListToursQuery = z.infer<typeof listToursQuerySchema>;

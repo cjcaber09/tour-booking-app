@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Banknote, FileText, Upload } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { cn } from './lib/utils';
-import { useAppSettings } from './AppSettingsContext';
+import { useAppSettings } from './states/appSettingsStore';
 
 type PaymentMethod = 'CASH' | 'INVOICE_REFERENCE' | 'FILE';
 

@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { CalendarIcon } from 'lucide-react';
 import { format, parse } from 'date-fns';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
+import { useRequestError } from '../../lib/useRequestError';
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Calendar } from '../../components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -51,19 +52,13 @@ function deriveFormState(booking: BookingDetail | undefined): FormState {
   };
 }
 
-function cleanIpcErrorMessage(message: string): string {
-  return message
-    .replace(/^Error invoking remote method '[^']+':\s*/, '')
-    .replace(/^Error:\s*/, '');
-}
-
 type CustomerMode = 'search' | 'selected' | 'new';
 
 export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
   const isEditing = booking != null;
   const { session } = useAuth();
   const [form, setForm] = useState<FormState>(() => deriveFormState(booking));
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { fieldErrors, setFieldErrors, handleRequestError } = useRequestError();
   const [submitting, setSubmitting] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
@@ -123,32 +118,6 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
     setCustomerQuery('');
     setCustomerResults([]);
     setCustomerMode('search');
-  }
-
-  function handleRequestError(err: unknown) {
-    const raw = err instanceof Error ? cleanIpcErrorMessage(err.message) : 'request failed';
-    try {
-      const parsed = JSON.parse(raw) as {
-        status?: number;
-        error?: string;
-        details?: Record<string, string[]>;
-      };
-      if (parsed.status === 401) {
-        toast.error('Session expired, please log in again.');
-      } else if (parsed.details) {
-        const flat: Record<string, string> = {};
-        for (const [field, messages] of Object.entries(parsed.details)) {
-          if (messages?.[0]) {
-            flat[field] = messages[0];
-          }
-        }
-        setFieldErrors(flat);
-      } else {
-        toast.error(parsed.error || 'Could not complete request.');
-      }
-    } catch {
-      toast.error(raw || 'Could not complete request.');
-    }
   }
 
   async function handleSubmit(event: FormEvent) {

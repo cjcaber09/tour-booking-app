@@ -31,6 +31,7 @@ export interface CreateTourPayload {
   priceDiscount?: number;
   startLocation?: string;
   isActive?: boolean;
+  categoryIds?: string[];
 }
 
 export type UpdateTourPayload = Partial<CreateTourPayload>;
@@ -54,12 +55,18 @@ export interface TourListItem {
   createdAt: string;
 }
 
+export interface TourListFilters {
+  q?: string;
+  isActive?: boolean;
+}
+
 export interface ListToursResult {
   tours: TourListItem[];
   total: number;
   page: number;
   limit: number;
   totalPages: number;
+  statusCounts: { ALL: number; ACTIVE: number; INACTIVE: number };
 }
 
 export interface CategorySummary {
@@ -67,6 +74,20 @@ export interface CategorySummary {
   name: string;
   slug: string;
 }
+
+export interface ListCategoriesResult {
+  categories: CategorySummary[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface CreateCategoryPayload {
+  name: string;
+}
+
+export type UpdateCategoryPayload = CreateCategoryPayload;
 
 export interface TourDetail {
   id: string;
@@ -110,6 +131,31 @@ export interface CustomerInput {
 export interface SearchCustomersResult {
   customers: CustomerSummary[];
 }
+
+export interface CustomerListItem extends CustomerSummary {
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ListCustomersResult {
+  customers: CustomerListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface CustomerDetail extends CustomerListItem {
+  bookings: BookingListItem[];
+}
+
+export interface CreateCustomerPayload {
+  name: string;
+  email: string;
+  phone?: string | null;
+}
+
+export type UpdateCustomerPayload = Partial<CreateCustomerPayload>;
 
 export interface CreateBookingPayload {
   tourId: string;
@@ -176,12 +222,22 @@ export interface ListBookingsResult {
   page: number;
   limit: number;
   totalPages: number;
+  // ALL is every status combined, not just these 3 — ONGOING/COMPLETED have no tab.
+  statusCounts: { ALL: number; PENDING: number; CONFIRMED: number; CANCELLED: number };
 }
 
 export interface CalendarBookingsResult {
   bookings: BookingListItem[];
   from: string;
   to: string;
+}
+
+export interface BookingsStatsResult {
+  totalBookings: number;
+  upcomingBookings: number;
+  cancellationsThisMonth: number;
+  revenueThisMonth: string;
+  bookingsTrend: { date: string; count: number }[];
 }
 
 export interface BookingDetail {
@@ -209,6 +265,7 @@ contextBridge.exposeInMainWorld('authAPI', {
     ipcRenderer.invoke('auth:login', email, password),
   getSession: (): Promise<AdminSession | null> => ipcRenderer.invoke('auth:getSession'),
   logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
+  requestRecovery: (email: string): Promise<void> => ipcRenderer.invoke('auth:request-recovery', email),
 });
 
 contextBridge.exposeInMainWorld('toursAPI', {
@@ -229,8 +286,8 @@ contextBridge.exposeInMainWorld('toursAPI', {
     files: { data: string; filename: string; mimetype: string }[],
     accessToken: string,
   ): Promise<UploadImagesResult> => ipcRenderer.invoke('tours:upload-images', files, accessToken),
-  list: (page: number, limit: number, accessToken: string): Promise<ListToursResult> =>
-    ipcRenderer.invoke('tours:list', page, limit, accessToken),
+  list: (page: number, limit: number, filters: TourListFilters, accessToken: string): Promise<ListToursResult> =>
+    ipcRenderer.invoke('tours:list', page, limit, filters, accessToken),
 });
 
 contextBridge.exposeInMainWorld('bookingsAPI', {
@@ -254,6 +311,8 @@ contextBridge.exposeInMainWorld('bookingsAPI', {
     ipcRenderer.invoke('bookings:cancel', id, payload, accessToken),
   calendar: (accessToken: string): Promise<CalendarBookingsResult> =>
     ipcRenderer.invoke('bookings:calendar', accessToken),
+  stats: (accessToken: string): Promise<BookingsStatsResult> =>
+    ipcRenderer.invoke('bookings:stats', accessToken),
   recordPayment: (id: string, payload: RecordPaymentPayload, accessToken: string): Promise<BookingDetail> =>
     ipcRenderer.invoke('bookings:record-payment', id, payload, accessToken),
   uploadPaymentProof: (
@@ -269,6 +328,27 @@ contextBridge.exposeInMainWorld('bookingsAPI', {
 contextBridge.exposeInMainWorld('customersAPI', {
   search: (q: string, accessToken: string): Promise<SearchCustomersResult> =>
     ipcRenderer.invoke('customers:search', q, accessToken),
+  list: (page: number, limit: number, q: string, accessToken: string): Promise<ListCustomersResult> =>
+    ipcRenderer.invoke('customers:list', page, limit, q, accessToken),
+  get: (id: string, accessToken: string): Promise<CustomerDetail> =>
+    ipcRenderer.invoke('customers:get', id, accessToken),
+  create: (payload: CreateCustomerPayload, accessToken: string): Promise<CustomerListItem> =>
+    ipcRenderer.invoke('customers:create', payload, accessToken),
+  update: (id: string, payload: UpdateCustomerPayload, accessToken: string): Promise<CustomerListItem> =>
+    ipcRenderer.invoke('customers:update', id, payload, accessToken),
+  delete: (id: string, accessToken: string): Promise<{ id: string }> =>
+    ipcRenderer.invoke('customers:delete', id, accessToken),
+});
+
+contextBridge.exposeInMainWorld('categoriesAPI', {
+  list: (page: number, limit: number, accessToken: string): Promise<ListCategoriesResult> =>
+    ipcRenderer.invoke('categories:list', page, limit, accessToken),
+  create: (payload: CreateCategoryPayload, accessToken: string): Promise<CategorySummary> =>
+    ipcRenderer.invoke('categories:create', payload, accessToken),
+  update: (id: string, payload: UpdateCategoryPayload, accessToken: string): Promise<CategorySummary> =>
+    ipcRenderer.invoke('categories:update', id, payload, accessToken),
+  delete: (id: string, accessToken: string): Promise<{ id: string }> =>
+    ipcRenderer.invoke('categories:delete', id, accessToken),
 });
 
 export interface AuditEntry {
@@ -367,6 +447,7 @@ contextBridge.exposeInMainWorld('profileAPI', {
 
 export interface AdminListItem extends AdminSummary {
   isActive: boolean;
+  recoveryRequestedAt: string | null;
 }
 
 export interface CreateAdminPayload {
@@ -387,21 +468,31 @@ export interface UpdateAdminPayload {
   isActive?: boolean;
 }
 
+export interface AdminListFilters {
+  q?: string;
+  isActive?: boolean;
+}
+
 export interface ListAdminsResult {
   admins: AdminListItem[];
   total: number;
   page: number;
   limit: number;
   totalPages: number;
+  statusCounts: { ALL: number; ACTIVE: number; SUSPENDED: number };
 }
 
 contextBridge.exposeInMainWorld('adminsAPI', {
-  list: (page: number, limit: number, accessToken: string): Promise<ListAdminsResult> =>
-    ipcRenderer.invoke('admins:list', page, limit, accessToken),
+  list: (page: number, limit: number, filters: AdminListFilters, accessToken: string): Promise<ListAdminsResult> =>
+    ipcRenderer.invoke('admins:list', page, limit, filters, accessToken),
   create: (payload: CreateAdminPayload, accessToken: string): Promise<CreateAdminResult> =>
     ipcRenderer.invoke('admins:create', payload, accessToken),
   update: (id: string, payload: UpdateAdminPayload, accessToken: string): Promise<AdminListItem> =>
     ipcRenderer.invoke('admins:update', id, payload, accessToken),
   delete: (id: string, accessToken: string): Promise<{ id: string }> =>
     ipcRenderer.invoke('admins:delete', id, accessToken),
+  resetPassword: (id: string, accessToken: string): Promise<CreateAdminResult> =>
+    ipcRenderer.invoke('admins:reset-password', id, accessToken),
+  countRecoveryRequests: (accessToken: string): Promise<{ total: number }> =>
+    ipcRenderer.invoke('admins:count-recovery-requests', accessToken),
 });

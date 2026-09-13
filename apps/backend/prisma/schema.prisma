@@ -54,6 +54,7 @@ model Admin {
   isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
+  recoveryRequestedAt DateTime?
 
   @@index([role])
   @@index([isActive])

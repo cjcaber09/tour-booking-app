@@ -9,10 +9,11 @@ import {
   verifyRefreshToken,
 } from '../lib/tokens';
 import { requireAuth } from '../middleware/auth';
+import { loginLimiter, recoveryLimiter } from '../middleware/rateLimit';
 
 export const authRouter = Router();
 
-authRouter.post('/login', async (req, res, next) => {
+authRouter.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const { email, password } = req.body as { email?: string; password?: string };
     if (!email || !password) {
@@ -48,6 +49,30 @@ authRouter.post('/login', async (req, res, next) => {
     ]);
 
     res.json({ accessToken, refreshToken });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Public, unauthenticated by design — this is the "everyone else" side of account recovery.
+// Never reveals whether the email exists: identical 204 response either way, so this can't be
+// used to enumerate admin accounts. If it does exist, it just flags recoveryRequestedAt for an
+// ADMIN to see and act on (POST /admins/:id/reset-password) — no password is ever generated or
+// returned here.
+authRouter.post('/request-recovery', recoveryLimiter, async (req, res, next) => {
+  try {
+    const { email } = req.body as { email?: string };
+    if (!email) {
+      res.status(400).json({ error: 'email is required' });
+      return;
+    }
+
+    const admin = await prisma.admin.findUnique({ where: { email } });
+    if (admin) {
+      await prisma.admin.update({ where: { id: admin.id }, data: { recoveryRequestedAt: new Date() } });
+    }
+
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

@@ -1,6 +1,6 @@
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '../../components/ui/button';
-import { useAppSettings } from '../../AppSettingsContext';
+import { useAppSettings } from '../../states/appSettingsStore';
 import type { BookingDetail } from '../../../preload';
 
 interface BookingViewProps {
@@ -95,28 +95,39 @@ export function BookingView({ booking, onBack }: BookingViewProps) {
       {booking.payments.length > 0 && (
         <div className="detail-section">
           <span className="detail-label">Payment history</span>
-          <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {booking.payments.map((payment) => (
-              <li key={payment.id} className="flex items-center justify-between gap-3 text-sm text-heading">
-                <span>{formatDateTime(payment.createdAt)}</span>
-                <span>{formatCurrency(payment.amount)}</span>
-                <span className="text-muted">
-                  {payment.method === 'CASH' && 'Cash'}
-                  {payment.method === 'INVOICE_REFERENCE' && `Invoice: ${payment.invoiceReference}`}
-                  {payment.method === 'FILE' && (
-                    <a
-                      href={payment.proofUrl ?? undefined}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-accent-end underline"
-                    >
-                      View proof
-                    </a>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="table-container mt-2">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                </tr>
+              </thead>
+              <tbody>
+                {booking.payments.map((payment) => (
+                  <tr key={payment.id}>
+                    <td>{formatDateTime(payment.createdAt)}</td>
+                    <td>{formatCurrency(payment.amount)}</td>
+                    <td className="text-muted">
+                      {payment.method === 'CASH' && 'Cash'}
+                      {payment.method === 'INVOICE_REFERENCE' && `Invoice: ${payment.invoiceReference}`}
+                      {payment.method === 'FILE' && (
+                        <a
+                          href={payment.proofUrl ?? undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-accent-end underline"
+                        >
+                          View proof
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

@@ -1,50 +1,23 @@
-import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
-import {
-  ChevronLeft,
-  ChevronRight,
-  Pencil,
-  DollarSign,
-  CircleCheck,
-  PlayCircle,
-  XCircle,
-  Eye,
-  Search,
-  EllipsisVertical,
-  type LucideProps,
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Pencil, DollarSign, CircleCheck, PlayCircle, XCircle, Eye, Search } from 'lucide-react';
 import { BookingForm } from './BookingForm';
 import { BookingView } from './BookingView';
-import { useAuth } from '../../AuthContext';
-import { useAppSettings } from '../../AppSettingsContext';
+import { useAuth } from '../../states/authStore';
+import { useAppSettings } from '../../states/appSettingsStore';
+import { useBookingsListStore, type BookingsStatusFilter } from '../../states/bookingsListStore';
+import { useDebouncedRefetch } from '../../lib/useDebouncedRefetch';
 import { toast } from '../../toast';
 import { LoadingOverlay } from '../../LoadingOverlay';
 import { ConfirmDialog } from '../../ConfirmDialog';
 import { CancelBookingDialog } from '../../CancelBookingDialog';
 import { RecordPaymentDialog } from '../../RecordPaymentDialog';
-import type {
-  BookingListItem,
-  BookingDetail,
-  BookingStatus,
-  PaymentMethod,
-  RecordPaymentPayload,
-} from '../../../preload';
+import { Pagination } from '../../Pagination';
+import { RowActionsMenu, type RowAction } from '../../RowActionsMenu';
+import { cleanIpcErrorMessage } from '../../lib/ipc';
+import type { BookingListItem, BookingStatus, PaymentMethod, RecordPaymentPayload } from '../../../preload';
 import { cn } from '../../lib/utils';
 import { fileToBase64 } from '../../lib/file';
 import { Button } from '../../components/ui/button';
-import { Popover, PopoverTrigger, PopoverContent } from '../../components/ui/popover';
-
-type Mode =
-  | { kind: 'idle' }
-  | { kind: 'create' }
-  | { kind: 'edit'; booking: BookingDetail }
-  | { kind: 'view'; booking: BookingDetail };
-const PAGE_SIZE = 10;
-
-function cleanIpcErrorMessage(message: string): string {
-  return message
-    .replace(/^Error invoking remote method '[^']+':\s*/, '')
-    .replace(/^Error:\s*/, '');
-}
 
 function isStartDateDue(startDate: string): boolean {
   const start = new Date(startDate);
@@ -87,22 +60,12 @@ const STATUS_BORDER_CLASS: Record<BookingStatus, string> = {
   CANCELLED: 'border-cancelled',
 };
 
-type StatusTabKey = 'ALL' | 'PENDING' | 'CONFIRMED' | 'CANCELLED';
-
-const STATUS_TABS: { key: StatusTabKey; label: string }[] = [
+const STATUS_TABS: { key: BookingsStatusFilter; label: string }[] = [
   { key: 'ALL', label: 'All' },
   { key: 'PENDING', label: 'Pending' },
   { key: 'CONFIRMED', label: 'Confirmed' },
   { key: 'CANCELLED', label: 'Cancelled' },
 ];
-
-interface RowAction {
-  key: string;
-  label: string;
-  Icon: ComponentType<LucideProps>;
-  onClick: () => void;
-  danger?: boolean;
-}
 
 interface RowActionHandlers {
   onView: (booking: BookingListItem) => void;
@@ -170,132 +133,58 @@ function getRowActions(
   return { primary, overflow };
 }
 
-function RowActionsMenu({
-  primary,
-  overflow,
-  isRowLoading,
-  menuLabel,
-}: {
-  primary: RowAction | null;
-  overflow: RowAction[];
-  isRowLoading: boolean;
-  menuLabel: string;
-}) {
-  return (
-    <div className="row-actions justify-end">
-      {primary && (
-        <Button size="sm" className="action-button" onClick={primary.onClick} disabled={isRowLoading}>
-          <primary.Icon size={14} />
-          {primary.label}
-        </Button>
-      )}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="icon" disabled={isRowLoading} aria-label={menuLabel}>
-            <EllipsisVertical size={16} />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-48 p-1">
-          <div role="menu" className="flex flex-col">
-            {overflow.map((action) => (
-              <button
-                key={action.key}
-                type="button"
-                role="menuitem"
-                disabled={isRowLoading}
-                className={cn(
-                  'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-heading hover:bg-sidebar-hover disabled:cursor-not-allowed disabled:opacity-60',
-                  action.danger && 'text-error',
-                )}
-                onClick={action.onClick}
-              >
-                <action.Icon size={14} />
-                {action.label}
-              </button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
-}
-
 export function Bookings() {
   const { session } = useAuth();
   const { formatCurrency, formatDate } = useAppSettings();
-  const [mode, setMode] = useState<Mode>({ kind: 'idle' });
-  const [panelKey, setPanelKey] = useState(0);
-  const [rowLoadingId, setRowLoadingId] = useState<string | null>(null);
+  const {
+    items: bookings,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    statusFilter,
+    mode,
+    statusCounts,
+    panelKey,
+    rowLoadingId,
+    fetchPage,
+    setSearch,
+    setStatusFilter,
+    openPanel,
+    closePanel,
+    setRowLoadingId,
+    updateItem,
+  } = useBookingsListStore();
+
   const [confirmPendingCancel, setConfirmPendingCancel] = useState<BookingListItem | null>(null);
   const [confirmedCancelBooking, setConfirmedCancelBooking] = useState<BookingListItem | null>(null);
   const [confirmActionBooking, setConfirmActionBooking] = useState<BookingListItem | null>(null);
   const [ongoingActionBooking, setOngoingActionBooking] = useState<BookingListItem | null>(null);
   const [recordPaymentBooking, setRecordPaymentBooking] = useState<BookingListItem | null>(null);
-  const [bookings, setBookings] = useState<BookingListItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusTabKey>('ALL');
 
-  const statusCounts = useMemo(
-    () => ({
-      ALL: bookings.length,
-      PENDING: bookings.filter((b) => b.status === 'PENDING').length,
-      CONFIRMED: bookings.filter((b) => b.status === 'CONFIRMED').length,
-      CANCELLED: bookings.filter((b) => b.status === 'CANCELLED').length,
-    }),
-    [bookings],
-  );
-
-  const filteredBookings = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return bookings.filter((booking) => {
-      if (statusFilter !== 'ALL' && booking.status !== statusFilter) {
-        return false;
-      }
-      if (!q) {
-        return true;
-      }
-      return (
-        booking.reference.toLowerCase().includes(q) ||
-        booking.tour.title.toLowerCase().includes(q) ||
-        booking.customer.name.toLowerCase().includes(q)
-      );
-    });
-  }, [bookings, search, statusFilter]);
-
-  const fetchBookings = useCallback(
-    async (targetPage: number) => {
-      if (!session) {
-        return;
-      }
-      setLoading(true);
-      setError('');
-      try {
-        const result = await window.bookingsAPI.list(targetPage, PAGE_SIZE, {}, session.accessToken);
-        setBookings(result.bookings);
-        setTotal(result.total);
-        setPage(result.page);
-        setTotalPages(result.totalPages);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not load bookings.');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [session],
-  );
+  // Search and status are sent to the backend (see bookingsListStore's fetchPage) so
+  // they apply across the whole dataset, not just whatever page is currently loaded —
+  // `bookings` below is already the filtered/paginated result, nothing further to filter client-side.
+  const hasActiveFilter = search.trim() !== '' || statusFilter !== 'ALL';
 
   useEffect(() => {
-    fetchBookings(1);
-  }, [fetchBookings]);
+    // Refetches whatever page the store is already on (persisted across navigation)
+    // rather than hardcoding page 1 — fetchPage never blanks items first, so stale-
+    // but-valid rows stay visible while this resolves in the background.
+    fetchPage(useBookingsListStore.getState().page);
+    return () => {
+      // The panel's content (BookingForm/BookingView) is local and would remount
+      // blank anyway, so an open panel shouldn't survive navigating away.
+      useBookingsListStore.getState().closePanel();
+    };
+  }, []);
+
+  useDebouncedRefetch(fetchPage, [search, statusFilter]);
 
   function handleNewBookingClick() {
-    setPanelKey((k) => k + 1);
-    setMode({ kind: 'create' });
+    openPanel({ kind: 'create' });
   }
 
   async function handleEditClick(id: string) {
@@ -305,8 +194,7 @@ export function Bookings() {
     setRowLoadingId(id);
     try {
       const booking = await window.bookingsAPI.get(id, session.accessToken);
-      setPanelKey((k) => k + 1);
-      setMode({ kind: 'edit', booking });
+      openPanel({ kind: 'edit', booking });
     } catch (err) {
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not load booking.');
     } finally {
@@ -321,8 +209,7 @@ export function Bookings() {
     setRowLoadingId(id);
     try {
       const booking = await window.bookingsAPI.get(id, session.accessToken);
-      setPanelKey((k) => k + 1);
-      setMode({ kind: 'view', booking });
+      openPanel({ kind: 'view', booking });
     } catch (err) {
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not load booking.');
     } finally {
@@ -347,7 +234,7 @@ export function Bookings() {
     try {
       await window.bookingsAPI.confirm(booking.id, session.accessToken);
       toast.success('Booking confirmed.');
-      setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, status: 'CONFIRMED' } : b)));
+      updateItem(booking.id, (b) => ({ ...b, status: 'CONFIRMED' }));
     } catch (err) {
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not confirm booking.');
     } finally {
@@ -372,7 +259,7 @@ export function Bookings() {
     try {
       await window.bookingsAPI.ongoing(booking.id, session.accessToken);
       toast.success('Booking marked ongoing.');
-      setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, status: 'ONGOING' } : b)));
+      updateItem(booking.id, (b) => ({ ...b, status: 'ONGOING' }));
     } catch (err) {
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not mark booking ongoing.');
     } finally {
@@ -419,13 +306,11 @@ export function Bookings() {
       toast.success('Booking cancelled.');
       // Mirrors the backend's own rule (POST /bookings/:id/cancel): paymentStatus flips to
       // REFUNDED whenever refundAmount > 0, otherwise it's left as whatever it already was.
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.id === booking.id
-            ? { ...b, status: 'CANCELLED', paymentStatus: refundAmount > 0 ? 'REFUNDED' : b.paymentStatus }
-            : b,
-        ),
-      );
+      updateItem(booking.id, (b) => ({
+        ...b,
+        status: 'CANCELLED',
+        paymentStatus: refundAmount > 0 ? 'REFUNDED' : b.paymentStatus,
+      }));
     } catch (err) {
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not cancel booking.');
     } finally {
@@ -472,11 +357,7 @@ export function Bookings() {
             : { method: 'FILE', amount: payload.amount, proofUrl: proofUrl! };
       const updated = await window.bookingsAPI.recordPayment(booking.id, recordPayload, session.accessToken);
       toast.success('Payment recorded.');
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.id === booking.id ? { ...b, amountPaid: updated.amountPaid, paymentStatus: updated.paymentStatus } : b,
-        ),
-      );
+      updateItem(booking.id, (b) => ({ ...b, amountPaid: updated.amountPaid, paymentStatus: updated.paymentStatus }));
     } catch (err) {
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not record payment.');
     } finally {
@@ -486,18 +367,11 @@ export function Bookings() {
 
   function handleSaved() {
     const wasEditing = mode.kind === 'edit';
-    setMode({ kind: 'idle' });
-    fetchBookings(wasEditing ? page : 1);
+    closePanel();
+    fetchPage(wasEditing ? page : 1);
   }
 
-  function goToPage(nextPage: number) {
-    if (nextPage < 1 || nextPage > totalPages || nextPage === page) {
-      return;
-    }
-    fetchBookings(nextPage);
-  }
-
-  const bookingRows = filteredBookings.map((booking) => {
+  const bookingRows = bookings.map((booking) => {
     const paid = Number(booking.amountPaid);
     const totalPrice = Number(booking.totalPrice);
     const paidPct = totalPrice > 0 ? Math.min(100, Math.round((paid / totalPrice) * 100)) : 0;
@@ -532,10 +406,10 @@ export function Bookings() {
         </div>
 
         {error && <p className="status-message status-message-error">{error}</p>}
-        {!error && loading && total === 0 && <p className="status-message">Loading bookings…</p>}
-        {!error && !loading && total === 0 && <p className="status-message">No bookings yet.</p>}
+        {!error && loading && total === 0 && !hasActiveFilter && <p className="status-message">Loading bookings…</p>}
+        {!error && !loading && total === 0 && !hasActiveFilter && <p className="status-message">No bookings yet.</p>}
 
-        {total > 0 && (
+        {(total > 0 || hasActiveFilter) && (
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
               <div className="relative w-full max-w-xs">
@@ -566,7 +440,7 @@ export function Bookings() {
             </div>
 
             <div className="table-container">
-              {filteredBookings.length === 0 ? (
+              {bookings.length === 0 ? (
                 <p className="status-message m-0">No bookings match your search.</p>
               ) : (
                 <>
@@ -636,8 +510,9 @@ export function Bookings() {
                                 <RowActionsMenu
                                   primary={primary}
                                   overflow={overflow}
-                                  isRowLoading={isRowLoading}
-                                  menuLabel={`More actions for ${booking.reference}`}
+                                  disabled={isRowLoading}
+                                  ariaLabel={`More actions for ${booking.reference}`}
+                                  menuClassName="w-48 p-1"
                                 />
                               </td>
                             </tr>
@@ -705,8 +580,8 @@ export function Bookings() {
                             <RowActionsMenu
                               primary={primary}
                               overflow={overflow}
-                              isRowLoading={isRowLoading}
-                              menuLabel={`More actions for ${booking.reference}`}
+                              disabled={isRowLoading}
+                              ariaLabel={`More actions for ${booking.reference}`}
                             />
                           </div>
                         </div>
@@ -717,36 +592,7 @@ export function Bookings() {
               )}
             </div>
 
-            {totalPages > 1 && (
-              <div className="pagination">
-                <Button
-                  className="page-arrow"
-                  onClick={() => goToPage(page - 1)}
-                  disabled={loading || page <= 1}
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft size={16} />
-                </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                  <Button
-                    key={n}
-                    className={cn('page-button', n === page && 'page-button-active')}
-                    onClick={() => goToPage(n)}
-                    disabled={loading || n === page}
-                  >
-                    {n}
-                  </Button>
-                ))}
-                <Button
-                  className="page-arrow"
-                  onClick={() => goToPage(page + 1)}
-                  disabled={loading || page >= totalPages}
-                  aria-label="Next page"
-                >
-                  <ChevronRight size={16} />
-                </Button>
-              </div>
-            )}
+            <Pagination page={page} totalPages={totalPages} loading={loading} onPageChange={fetchPage} />
           </>
         )}
       </div>
@@ -813,12 +659,12 @@ export function Bookings() {
 
       <div className={cn('slide-panel', mode.kind !== 'idle' && 'slide-panel-open')}>
         {mode.kind === 'view' ? (
-          <BookingView key={panelKey} booking={mode.booking} onBack={() => setMode({ kind: 'idle' })} />
+          <BookingView key={panelKey} booking={mode.booking} onBack={closePanel} />
         ) : (
           <BookingForm
             key={panelKey}
             booking={mode.kind === 'edit' ? mode.booking : undefined}
-            onCancel={() => setMode({ kind: 'idle' })}
+            onCancel={closePanel}
             onSaved={handleSaved}
           />
         )}

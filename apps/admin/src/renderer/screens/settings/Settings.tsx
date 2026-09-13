@@ -3,7 +3,7 @@ import { AppearanceTab } from './AppearanceTab';
 import { GeneralTab } from './GeneralTab';
 import { ProfileTab } from './ProfileTab';
 import { SecurityTab } from './SecurityTab';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../states/authStore';
 import { cn } from '../../lib/utils';
 
 type SettingsTab = 'profile' | 'security' | 'general' | 'appearance';
