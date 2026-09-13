@@ -1,11 +1,13 @@
-import { ChangeEvent, DragEvent, FormEvent, useRef, useState } from 'react';
+import { ChangeEvent, DragEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
+import { useRequestError } from '../../lib/useRequestError';
 import { cn } from '../../lib/utils';
 import { fileToBase64 } from '../../lib/file';
 import { Button } from '../../components/ui/button';
-import type { CreateTourPayload, TourDetail } from '../../../preload';
+import { CategoryPicker } from './CategoryPicker';
+import type { CreateTourPayload, TourDetail, CategorySummary } from '../../../preload';
 
 const DROPZONE_CLASS =
   'flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface px-4 py-6 text-center text-sm text-muted transition-colors duration-150 ease-in-out hover:border-muted';
@@ -71,17 +73,11 @@ interface GalleryImage {
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-function cleanIpcErrorMessage(message: string): string {
-  return message
-    .replace(/^Error invoking remote method '[^']+':\s*/, '')
-    .replace(/^Error:\s*/, '');
-}
-
 export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
   const isEditing = tour != null;
   const { session } = useAuth();
   const [form, setForm] = useState<FormState>(() => deriveFormState(tour));
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { fieldErrors, setFieldErrors, handleRequestError } = useRequestError();
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'images'>('details');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -96,6 +92,35 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
   const [isGalleryDragActive, setIsGalleryDragActive] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const [categories, setCategories] = useState<CategorySummary[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>(
+    () => tour?.categories.map((category) => category.id) ?? [],
+  );
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    window.categoriesAPI
+      .list(1, 100, session.accessToken)
+      .then((result) => setCategories(result.categories))
+      .catch(() => toast.error('Could not load categories.'));
+  }, [session]);
+
+  async function handleCreateCategory(name: string): Promise<CategorySummary | null> {
+    if (!session) {
+      return null;
+    }
+    try {
+      const created = await window.categoriesAPI.create({ name }, session.accessToken);
+      setCategories((prev) => [...prev, created]);
+      return created;
+    } catch {
+      toast.error('Could not create category.');
+      return null;
+    }
+  }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -227,33 +252,8 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
     setFieldErrors({});
     resetImage();
     resetGalleryImages();
+    setSelectedCategoryIds([]);
     onCancel();
-  }
-
-  function handleRequestError(err: unknown) {
-    const raw = err instanceof Error ? cleanIpcErrorMessage(err.message) : 'request failed';
-    try {
-      const parsed = JSON.parse(raw) as {
-        status?: number;
-        error?: string;
-        details?: Record<string, string[]>;
-      };
-      if (parsed.status === 401) {
-        toast.error('Session expired, please log in again.');
-      } else if (parsed.details) {
-        const flat: Record<string, string> = {};
-        for (const [field, messages] of Object.entries(parsed.details)) {
-          if (messages?.[0]) {
-            flat[field] = messages[0];
-          }
-        }
-        setFieldErrors(flat);
-      } else {
-        toast.error(parsed.error || 'Could not complete request.');
-      }
-    } catch {
-      toast.error(raw || 'Could not complete request.');
-    }
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -270,6 +270,7 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
         description: form.description,
         price: Number(form.price),
         isActive: form.isActive,
+        categoryIds: selectedCategoryIds,
       };
 
       if (imageFile) {
@@ -323,6 +324,7 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
       setForm(INITIAL_STATE);
       resetImage();
       resetGalleryImages();
+      setSelectedCategoryIds([]);
       onSaved();
     } catch (err) {
       handleRequestError(err);
@@ -505,6 +507,17 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
               onChange={(e) => update('startLocation', e.target.value)}
             />
           </label>
+
+          <div className="form-field col-span-full">
+            <span>Categories</span>
+            <CategoryPicker
+              categories={categories}
+              selectedIds={selectedCategoryIds}
+              onChange={setSelectedCategoryIds}
+              onCreateCategory={handleCreateCategory}
+              disabled={submitting}
+            />
+          </div>
 
           <label className="form-field col-span-full flex-row items-center gap-2">
             <input

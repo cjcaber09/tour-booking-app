@@ -1,11 +1,16 @@
+import { useEffect } from 'react';
 import { LoaderCircle } from 'lucide-react';
-import { AuthProvider, useAuth } from './AuthContext';
-import { AppSettingsProvider } from './AppSettingsContext';
+import './states/authOrchestrator';
+import { useAuth, useAuthStore } from './states/authStore';
 import { LoginScreen } from './screens/Login';
 import { AppLayout } from './layout/AppLayout';
 
 function AppShell() {
   const { status } = useAuth();
+
+  useEffect(() => {
+    useAuthStore.getState().init();
+  }, []);
 
   if (status === 'loading') {
     return (
@@ -24,11 +29,5 @@ function AppShell() {
 }
 
 export function App() {
-  return (
-    <AuthProvider>
-      <AppSettingsProvider>
-        <AppShell />
-      </AppSettingsProvider>
-    </AuthProvider>
-  );
+  return <AppShell />;
 }

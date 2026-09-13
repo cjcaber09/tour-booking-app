@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { ImageLightbox } from '../../ImageLightbox';
 import { Button } from '../../components/ui/button';
-import { useAppSettings } from '../../AppSettingsContext';
+import { useAppSettings } from '../../states/appSettingsStore';
 import type { TourDetail } from '../../../preload';
 
 interface TourViewProps {

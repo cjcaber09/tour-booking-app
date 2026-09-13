@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { getStoredTheme, setTheme, type ThemePreference } from '../../theme';
+import { useThemeStore, type ThemePreference } from '../../states/themeStore';
 import { cn } from '../../lib/utils';
 import { Button } from '../../components/ui/button';
 
@@ -10,12 +9,7 @@ const OPTIONS: { value: ThemePreference; label: string }[] = [
 ];
 
 export function AppearanceTab() {
-  const [selected, setSelected] = useState<ThemePreference>(getStoredTheme());
-
-  function handleSelect(value: ThemePreference) {
-    setTheme(value);
-    setSelected(value);
-  }
+  const { preference, setTheme } = useThemeStore();
 
   return (
     <div>
@@ -27,9 +21,9 @@ export function AppearanceTab() {
             variant="ghost"
             className={cn(
               'rounded-[10px] px-4 py-2 text-sm text-secondary',
-              option.value === selected && 'bg-surface text-heading neu-raised-md',
+              option.value === preference && 'bg-surface text-heading neu-raised-md',
             )}
-            onClick={() => handleSelect(option.value)}
+            onClick={() => setTheme(option.value)}
           >
             {option.label}
           </Button>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from './components/ui/button';
-import { useAppSettings } from './AppSettingsContext';
+import { useAppSettings } from './states/appSettingsStore';
 
 interface CancelBookingDialogProps {
   booking: { reference: string; amountPaid: number };

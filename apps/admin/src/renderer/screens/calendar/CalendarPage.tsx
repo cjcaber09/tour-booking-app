@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { eachDayOfInterval, format, isSameDay } from 'date-fns';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../states/authStore';
 import { Popover, PopoverTrigger, PopoverContent } from '../../components/ui/popover';
 import { cn } from '../../lib/utils';
 import type { BookingListItem } from '../../../preload';

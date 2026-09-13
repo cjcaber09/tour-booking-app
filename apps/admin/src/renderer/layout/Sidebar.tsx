@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../states/authStore';
+import { useAppSettings } from '../states/appSettingsStore';
 import { cn } from '../lib/utils';
 import { ROLE_LABELS } from '../lib/roles';
 import { Button } from '../components/ui/button';
@@ -11,12 +12,13 @@ import {
   ToursIcon,
   SettingsIcon,
   UsersIcon,
+  CustomersIcon,
   AuditIcon,
   ChevronIcon,
   SignOutIcon,
 } from './icons';
 
-export type View = 'dashboard' | 'bookings' | 'calendar' | 'tours' | 'settings' | 'users' | 'audit';
+export type View = 'dashboard' | 'bookings' | 'calendar' | 'tours' | 'customers' | 'settings' | 'users' | 'audit';
 
 interface SidebarProps {
   activeView: View;
@@ -30,6 +32,7 @@ const NAV_ITEMS: { view: View; label: string; Icon: typeof DashboardIcon }[] = [
   { view: 'bookings', label: 'Bookings', Icon: BookingsIcon },
   { view: 'calendar', label: 'Calendar', Icon: CalendarIcon },
   { view: 'tours', label: 'Tours', Icon: ToursIcon },
+  { view: 'customers', label: 'Customers', Icon: CustomersIcon },
   { view: 'users', label: 'Users', Icon: UsersIcon },
   // import.meta.env.DEV is statically replaced at build time, so Vite/Rollup constant-folds
   // and tree-shakes this branch out of packaged (electron-forge package/make) builds entirely
@@ -40,8 +43,12 @@ const NAV_ITEMS: { view: View; label: string; Icon: typeof DashboardIcon }[] = [
 
 export function Sidebar({ activeView, onNavigate, collapsed, onToggleCollapsed }: SidebarProps) {
   const { logout, session } = useAuth();
+  const { settings } = useAppSettings();
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const admin = session?.admin;
+  // Falls back to the same default the AppSettings model uses, so this renders correctly
+  // even before the first settings fetch resolves.
+  const appName = settings?.appName ?? 'Andy Tours';
 
   const navItemClass = (active: boolean) =>
     cn(
@@ -57,7 +64,7 @@ export function Sidebar({ activeView, onNavigate, collapsed, onToggleCollapsed }
       )}
     >
       <div className="mb-8 overflow-hidden whitespace-nowrap font-display text-xl tracking-[0.05em] text-heading">
-        {collapsed ? 'AT' : 'Andy Tours Admin'}
+        {collapsed ? 'AT' : `${appName} Admin`}
       </div>
 
       <nav className="flex flex-1 flex-col gap-2">

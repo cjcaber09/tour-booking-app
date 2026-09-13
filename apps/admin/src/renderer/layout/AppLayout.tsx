@@ -3,13 +3,14 @@ import { Sidebar, type View } from './Sidebar';
 import { Dashboard } from '../screens/Dashboard';
 import { Settings } from '../screens/settings/Settings';
 import { Tours } from '../screens/tours/Tours';
+import { Customers } from '../screens/customers/Customers';
 import { Bookings } from '../screens/bookings/Bookings';
 import { CalendarPage } from '../screens/calendar/CalendarPage';
 import { AuditPage } from '../screens/audit/AuditPage';
 import { Users } from '../screens/users/Users';
 import { Toaster } from '../Toaster';
-
-const SIDEBAR_COLLAPSED_KEY = 'admin.sidebarCollapsed';
+import { useRecoveryRequestNotice } from '../lib/useRecoveryRequestNotice';
+import { useSidebarStore } from '../states/sidebarStore';
 
 function renderContent(activeView: View) {
   switch (activeView) {
@@ -19,6 +20,8 @@ function renderContent(activeView: View) {
       return <Settings />;
     case 'tours':
       return <Tours />;
+    case 'customers':
+      return <Customers />;
     case 'bookings':
       return <Bookings />;
     case 'calendar':
@@ -35,17 +38,9 @@ function renderContent(activeView: View) {
 
 export function AppLayout() {
   const [activeView, setActiveView] = useState<View>('dashboard');
-  const [collapsed, setCollapsed] = useState<boolean>(
-    () => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true',
-  );
+  const { collapsed, toggleCollapsed } = useSidebarStore();
 
-  function toggleCollapsed() {
-    setCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
-      return next;
-    });
-  }
+  useRecoveryRequestNotice(activeView);
 
   return (
     <div className="flex h-screen">
