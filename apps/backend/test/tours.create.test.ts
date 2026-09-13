@@ -2,34 +2,22 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpers';
 
 const app = createApp();
-const testEmail = `tours-create-test-${Date.now()}@example.com`;
-const testPassword = 'correct-horse-battery-staple';
 let adminId: string;
 let accessToken: string;
 const createdTourIds: string[] = [];
 const createdCategoryIds: string[] = [];
 
-// Some of the tests below chain several sequential round trips to the remote dev
-// database (category lookups, slug uniqueness checks, tour create), which can
-// exceed vitest's 5s default timeout under real network latency.
-const DB_HEAVY_TEST_TIMEOUT = 15000;
-
 beforeAll(async () => {
-  const admin = await prisma.admin.create({
-    data: { email: testEmail, passwordHash: await hashPassword(testPassword), name: 'Tours Test Admin' },
-  });
-  adminId = admin.id;
-  accessToken = signAccessToken({ adminId });
+  ({ id: adminId, accessToken } = await createTestAdmin('Tours Test Admin'));
 });
 
 afterAll(async () => {
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await prisma.category.deleteMany({ where: { id: { in: createdCategoryIds } } });
-  await prisma.admin.delete({ where: { id: adminId } });
+  await deleteTestAdmin(adminId);
   await prisma.$disconnect();
 });
 

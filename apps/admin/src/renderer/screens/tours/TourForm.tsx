@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
 import { useRequestError } from '../../lib/useRequestError';
-import { cn } from '../../lib/utils';
+import { cn, trimStrings } from '../../lib/utils';
 import { fileToBase64 } from '../../lib/file';
 import { Button } from '../../components/ui/button';
 import { CategoryPicker } from './CategoryPicker';
@@ -314,11 +314,12 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
       const existingUrls = galleryImages.filter((image) => image.url != null).map((image) => image.url as string);
       payload.images = [...existingUrls, ...newlyUploadedUrls];
 
+      const sanitizedPayload = trimStrings(payload);
       if (isEditing && tour) {
-        await window.toursAPI.update(tour.id, payload, session.accessToken);
+        await window.toursAPI.update(tour.id, sanitizedPayload, session.accessToken);
         toast.success('Tour updated.');
       } else {
-        await window.toursAPI.create(payload, session.accessToken);
+        await window.toursAPI.create(sanitizedPayload, session.accessToken);
         toast.success('Tour created.');
       }
       setForm(INITIAL_STATE);

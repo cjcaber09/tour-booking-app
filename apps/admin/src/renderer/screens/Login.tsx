@@ -19,7 +19,10 @@ export function LoginScreen() {
     event.preventDefault();
     setSubmitting(true);
     try {
-      await login(email, password);
+      // Trim email only — never the password, since a leading/trailing space could be
+      // part of what the admin actually set (however unlikely) and silently changing
+      // it would just turn a typo into a confusing "wrong password" instead.
+      await login(email.trim(), password);
     } catch {
       // error is surfaced via useAuth().error
     } finally {
@@ -37,7 +40,7 @@ export function LoginScreen() {
     event.preventDefault();
     setRecoverySubmitting(true);
     try {
-      await window.authAPI.requestRecovery(recoveryEmail);
+      await window.authAPI.requestRecovery(recoveryEmail.trim());
     } finally {
       // Always the same message regardless of outcome, whether the request actually succeeded
       // or the email doesn't exist — matches the backend's deliberately non-leaking design.

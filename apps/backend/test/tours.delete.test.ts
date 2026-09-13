@@ -3,13 +3,10 @@ import request from 'supertest';
 import { createClient } from '@supabase/supabase-js';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpers';
 
 const app = createApp();
 const BUCKET = 'andy_booking';
-const testEmail = `tours-delete-test-${Date.now()}@example.com`;
-const testPassword = 'correct-horse-battery-staple';
 let adminId: string;
 let accessToken: string;
 const createdTourIds: string[] = [];
@@ -18,8 +15,6 @@ const createdBookingIds: string[] = [];
 const createdCustomerIds: string[] = [];
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
-
-const DB_HEAVY_TEST_TIMEOUT = 15000;
 
 function extractStoragePath(signedUrl: string): string {
   const marker = `/object/sign/${BUCKET}/`;
@@ -31,11 +26,7 @@ function extractStoragePath(signedUrl: string): string {
 }
 
 beforeAll(async () => {
-  const admin = await prisma.admin.create({
-    data: { email: testEmail, passwordHash: await hashPassword(testPassword), name: 'Tours Delete Test Admin' },
-  });
-  adminId = admin.id;
-  accessToken = signAccessToken({ adminId });
+  ({ id: adminId, accessToken } = await createTestAdmin('Tours Delete Test Admin'));
 });
 
 afterAll(async () => {
@@ -43,7 +34,7 @@ afterAll(async () => {
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await prisma.category.deleteMany({ where: { id: { in: createdCategoryIds } } });
-  await prisma.admin.delete({ where: { id: adminId } });
+  await deleteTestAdmin(adminId);
   await prisma.$disconnect();
 });
 

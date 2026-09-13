@@ -3,7 +3,7 @@ import { useAuth } from '../../states/authStore';
 import { useAppSettings } from '../../states/appSettingsStore';
 import { toast } from '../../toast';
 import { useRequestError } from '../../lib/useRequestError';
-import { cn } from '../../lib/utils';
+import { cn, trimStrings } from '../../lib/utils';
 import { fileToBase64 } from '../../lib/file';
 import { Button } from '../../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -81,7 +81,8 @@ export function ProfileTab() {
     setFieldErrors({});
 
     try {
-      const payload: UpdateProfilePayload = { name, phone: phone || null };
+      const trimmedPhone = phone.trim();
+      const payload: UpdateProfilePayload = trimStrings({ name, phone: trimmedPhone || null });
       if (isAdmin && role !== admin.role) {
         payload.role = role;
       }

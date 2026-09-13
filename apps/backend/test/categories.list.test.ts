@@ -2,24 +2,15 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpers';
 
 const app = createApp();
-const testEmail = `categories-list-test-${Date.now()}@example.com`;
-const testPassword = 'correct-horse-battery-staple';
 let adminId: string;
 let accessToken: string;
 const createdCategoryIds: string[] = [];
 
-const DB_HEAVY_TEST_TIMEOUT = 15000;
-
 beforeAll(async () => {
-  const admin = await prisma.admin.create({
-    data: { email: testEmail, passwordHash: await hashPassword(testPassword), name: 'Categories List Test Admin' },
-  });
-  adminId = admin.id;
-  accessToken = signAccessToken({ adminId });
+  ({ id: adminId, accessToken } = await createTestAdmin('Categories List Test Admin'));
 
   const base = Date.now();
   const seeded = await Promise.all([

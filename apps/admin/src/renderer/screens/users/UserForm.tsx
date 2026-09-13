@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Copy, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../states/authStore';
 import { useRequestError } from '../../lib/useRequestError';
+import { trimStrings } from '../../lib/utils';
 import { toast } from '../../toast';
 import { Button } from '../../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -33,7 +34,8 @@ export function UserForm({ onCancel, onCreated }: UserFormProps) {
     setFieldErrors({});
     setSubmitting(true);
     try {
-      const payload: CreateAdminPayload = { name, email, role, phone: phone || null };
+      const trimmedPhone = phone.trim();
+      const payload: CreateAdminPayload = trimStrings({ name, email, role, phone: trimmedPhone || null });
       const result = await window.adminsAPI.create(payload, session.accessToken);
       setCreatedResult(result);
     } catch (err) {
