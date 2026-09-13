@@ -1,7 +1,8 @@
 import { ChangeEvent, DragEvent, FormEvent, useMemo, useRef, useState } from 'react';
-import { useAuth } from '../../AuthContext';
-import { useAppSettings } from '../../AppSettingsContext';
+import { useAuth } from '../../states/authStore';
+import { useAppSettings } from '../../states/appSettingsStore';
 import { toast } from '../../toast';
+import { useRequestError } from '../../lib/useRequestError';
 import { cn } from '../../lib/utils';
 import { fileToBase64 } from '../../lib/file';
 import { Button } from '../../components/ui/button';
@@ -26,12 +27,6 @@ const DROPZONE_CLASS =
 const DROPZONE_ACTIVE_CLASS = 'border-accent-end text-heading';
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
-function cleanIpcErrorMessage(message: string): string {
-  return message
-    .replace(/^Error invoking remote method '[^']+':\s*/, '')
-    .replace(/^Error:\s*/, '');
-}
 
 export function GeneralTab() {
   const { settings, status } = useAppSettings();
@@ -68,7 +63,7 @@ function GeneralTabForm({ settings }: { settings: AppSettingsDto }) {
   const [isLogoDragActive, setIsLogoDragActive] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { fieldErrors, setFieldErrors, handleRequestError } = useRequestError('Could not save settings.');
   const [submitting, setSubmitting] = useState(false);
 
   // 'UTC' is prepended explicitly: Intl.supportedValuesOf('timeZone') enumerates
@@ -121,28 +116,6 @@ function GeneralTabForm({ settings }: { settings: AppSettingsDto }) {
     const file = event.dataTransfer.files?.[0];
     if (file) {
       processLogoFile(file);
-    }
-  }
-
-  function handleRequestError(err: unknown) {
-    const raw = err instanceof Error ? cleanIpcErrorMessage(err.message) : 'request failed';
-    try {
-      const parsed = JSON.parse(raw) as { status?: number; error?: string; details?: Record<string, string[]> };
-      if (parsed.status === 401) {
-        toast.error('Session expired, please log in again.');
-      } else if (parsed.details) {
-        const flat: Record<string, string> = {};
-        for (const [field, messages] of Object.entries(parsed.details)) {
-          if (messages?.[0]) {
-            flat[field] = messages[0];
-          }
-        }
-        setFieldErrors(flat);
-      } else {
-        toast.error(parsed.error || 'Could not save settings.');
-      }
-    } catch {
-      toast.error(raw || 'Could not save settings.');
     }
   }
 

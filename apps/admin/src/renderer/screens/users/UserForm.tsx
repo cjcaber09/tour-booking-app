@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Copy, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../states/authStore';
+import { useRequestError } from '../../lib/useRequestError';
 import { toast } from '../../toast';
 import { Button } from '../../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -12,12 +13,6 @@ interface UserFormProps {
   onCreated: () => void;
 }
 
-function cleanIpcErrorMessage(message: string): string {
-  return message
-    .replace(/^Error invoking remote method '[^']+':\s*/, '')
-    .replace(/^Error:\s*/, '');
-}
-
 export function UserForm({ onCancel, onCreated }: UserFormProps) {
   const { session } = useAuth();
   const [name, setName] = useState('');
@@ -25,36 +20,10 @@ export function UserForm({ onCancel, onCreated }: UserFormProps) {
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<AdminRole>('GUIDE');
 
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { fieldErrors, setFieldErrors, handleRequestError } = useRequestError();
   const [submitting, setSubmitting] = useState(false);
   const [createdResult, setCreatedResult] = useState<CreateAdminResult | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-
-  function handleRequestError(err: unknown) {
-    const raw = err instanceof Error ? cleanIpcErrorMessage(err.message) : 'request failed';
-    try {
-      const parsed = JSON.parse(raw) as {
-        status?: number;
-        error?: string;
-        details?: Record<string, string[]>;
-      };
-      if (parsed.status === 401) {
-        toast.error('Session expired, please log in again.');
-      } else if (parsed.details) {
-        const flat: Record<string, string> = {};
-        for (const [field, messages] of Object.entries(parsed.details)) {
-          if (messages?.[0]) {
-            flat[field] = messages[0];
-          }
-        }
-        setFieldErrors(flat);
-      } else {
-        toast.error(parsed.error || 'Could not complete request.');
-      }
-    } catch {
-      toast.error(raw || 'Could not complete request.');
-    }
-  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();

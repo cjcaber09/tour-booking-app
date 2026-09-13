@@ -1,21 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '../AuthContext';
-import { useAppSettings } from '../AppSettingsContext';
-import { stats, revenueThisMonth, bookingsTrend } from './mockAnalytics';
-import type { BookingListItem } from '../../preload';
+import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts';
+import { format } from 'date-fns';
+import { useAuth } from '../states/authStore';
+import { useAppSettings } from '../states/appSettingsStore';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '../components/ui/chart';
+import type { BookingListItem, BookingsStatsResult } from '../../preload';
 
 const UPCOMING_WINDOW_DAYS = 2;
 const RECENT_BOOKINGS_LIMIT = 5;
 
+const chartConfig: ChartConfig = {
+  count: { label: 'Bookings', color: 'var(--color-chart-1)' },
+};
+
 export function Dashboard() {
   const { session } = useAuth();
   const { formatCurrency, formatDate } = useAppSettings();
-  const maxBookings = Math.max(...bookingsTrend.map((point) => point.bookings));
-  const statCards = [
-    stats[0],
-    { label: 'Revenue (This Month)', value: formatCurrency(revenueThisMonth) },
-    ...stats.slice(1),
-  ];
+
+  const [stats, setStats] = useState<BookingsStatsResult | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [statsError, setStatsError] = useState('');
 
   const [recentBookings, setRecentBookings] = useState<BookingListItem[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
@@ -24,6 +28,22 @@ export function Dashboard() {
   const [upcomingBookings, setUpcomingBookings] = useState<BookingListItem[]>([]);
   const [loadingUpcoming, setLoadingUpcoming] = useState(false);
   const [upcomingError, setUpcomingError] = useState('');
+
+  const fetchStats = useCallback(async () => {
+    if (!session) {
+      return;
+    }
+    setLoadingStats(true);
+    setStatsError('');
+    try {
+      const result = await window.bookingsAPI.stats(session.accessToken);
+      setStats(result);
+    } catch (err) {
+      setStatsError(err instanceof Error ? err.message : 'Could not load dashboard stats.');
+    } finally {
+      setLoadingStats(false);
+    }
+  }, [session]);
 
   const fetchRecentBookings = useCallback(async () => {
     if (!session) {
@@ -74,34 +94,59 @@ export function Dashboard() {
   }, [session]);
 
   useEffect(() => {
+    fetchStats();
     fetchRecentBookings();
     fetchUpcomingBookings();
-  }, [fetchRecentBookings, fetchUpcomingBookings]);
+  }, [fetchStats, fetchRecentBookings, fetchUpcomingBookings]);
+
+  const statCards = stats
+    ? [
+        { label: 'Total Bookings', value: stats.totalBookings.toLocaleString() },
+        { label: 'Revenue (This Month)', value: formatCurrency(stats.revenueThisMonth) },
+        { label: 'Upcoming Tours', value: stats.upcomingBookings.toLocaleString() },
+        { label: 'Cancellations', value: stats.cancellationsThisMonth.toLocaleString() },
+      ]
+    : [];
 
   return (
     <div className="box-border p-8">
-      <section className="mb-8 grid grid-cols-2 gap-6 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <div className="flex flex-col gap-2 rounded-[20px] bg-surface p-6 neu-raised-lg" key={stat.label}>
-            <span className="font-display text-4xl tracking-[0.03em] text-stat">{stat.value}</span>
-            <span className="text-sm text-muted">{stat.label}</span>
-          </div>
-        ))}
-      </section>
+      {statsError && <p className="status-message status-message-error">{statsError}</p>}
+      {!statsError && loadingStats && !stats && <p className="status-message">Loading…</p>}
+
+      {!statsError && stats && (
+        <section className="mb-8 grid grid-cols-2 gap-6 lg:grid-cols-4">
+          {statCards.map((stat) => (
+            <div className="flex flex-col gap-2 rounded-[20px] bg-surface p-6 neu-raised-lg" key={stat.label}>
+              <span className="font-display text-4xl tracking-[0.03em] text-stat">{stat.value}</span>
+              <span className="text-sm text-muted">{stat.label}</span>
+            </div>
+          ))}
+        </section>
+      )}
 
       <section className="mb-8 rounded-[20px] bg-surface p-6 neu-raised-lg">
         <h2 className="m-0 mb-4 font-display text-xl tracking-[0.03em] text-heading">Bookings — last 7 days</h2>
-        <div className="flex h-40 items-end gap-4">
-          {bookingsTrend.map((point) => (
-            <div className="flex h-full flex-1 flex-col items-center justify-end" key={point.day}>
-              <div
-                className="min-h-1 w-full rounded-t-lg bg-gradient-to-b from-accent-start to-accent-end"
-                style={{ height: `${(point.bookings / maxBookings) * 100}%` }}
+        {stats && (
+          <ChartContainer config={chartConfig} className="h-40 w-full">
+            <BarChart data={stats.bookingsTrend}>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="date"
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value: string) => format(new Date(value), 'EEE')}
               />
-              <span className="mt-2 text-xs text-muted">{point.day}</span>
-            </div>
-          ))}
-        </div>
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    labelFormatter={(value) => format(new Date(value as string), 'PPP')}
+                  />
+                }
+              />
+              <Bar dataKey="count" fill="var(--color-count)" radius={4} />
+            </BarChart>
+          </ChartContainer>
+        )}
       </section>
 
       <section className="mb-8 table-container">
@@ -142,7 +187,9 @@ export function Dashboard() {
       <section className="mb-8 table-container">
         <h2 className="m-0 mb-4 font-display text-xl tracking-[0.03em] text-heading">Recent bookings</h2>
         {recentError && <p className="status-message status-message-error">{recentError}</p>}
-        {!recentError && loadingRecent && recentBookings.length === 0 && <p className="status-message">Loading…</p>}
+        {!recentError && loadingRecent && recentBookings.length === 0 && (
+          <p className="status-message">Loading…</p>
+        )}
         {!recentError && !loadingRecent && recentBookings.length === 0 && (
           <p className="status-message">No bookings yet.</p>
         )}

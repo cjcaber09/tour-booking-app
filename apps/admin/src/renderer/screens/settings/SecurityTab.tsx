@@ -1,13 +1,8 @@
 import { FormEvent, useState } from 'react';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
+import { cleanIpcErrorMessage } from '../../lib/ipc';
 import { Button } from '../../components/ui/button';
-
-function cleanIpcErrorMessage(message: string): string {
-  return message
-    .replace(/^Error invoking remote method '[^']+':\s*/, '')
-    .replace(/^Error:\s*/, '');
-}
 
 export function SecurityTab() {
   const { session } = useAuth();

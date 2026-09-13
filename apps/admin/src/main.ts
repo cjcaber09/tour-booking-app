@@ -6,6 +6,7 @@ import {
   backendLogin,
   backendRefresh,
   backendLogout,
+  backendRequestRecovery,
   backendMe,
   backendCreateTour,
   backendGetTour,
@@ -16,6 +17,7 @@ import {
   backendListTours,
   backendListBookings,
   backendGetBookingsCalendar,
+  backendGetBookingsStats,
   backendGetBooking,
   backendCreateBooking,
   backendUpdateBooking,
@@ -25,6 +27,15 @@ import {
   backendRecordPayment,
   backendUploadPaymentProof,
   backendSearchCustomers,
+  backendListCustomers,
+  backendGetCustomer,
+  backendCreateCustomer,
+  backendUpdateCustomer,
+  backendDeleteCustomer,
+  backendListCategories,
+  backendCreateCategory,
+  backendUpdateCategory,
+  backendDeleteCategory,
   backendListAudit,
   backendGetSettings,
   backendUpdateSettings,
@@ -36,6 +47,8 @@ import {
   backendCreateAdmin,
   backendUpdateAdmin,
   backendDeleteAdmin,
+  backendResetAdminPassword,
+  backendCountAdminRecoveryRequests,
 } from './main/backend-client';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -118,6 +131,10 @@ ipcMain.handle('auth:logout', async () => {
   clearRefreshToken();
 });
 
+ipcMain.handle('auth:request-recovery', async (_event, email: string) => {
+  await backendRequestRecovery(email);
+});
+
 ipcMain.handle('tours:create', async (_event, payload, accessToken) => {
   try {
     return await backendCreateTour(payload, accessToken);
@@ -169,9 +186,9 @@ ipcMain.handle('tours:delete', async (_event, id: string, accessToken: string) =
   }
 });
 
-ipcMain.handle('tours:list', async (_event, page: number, limit: number, accessToken: string) => {
+ipcMain.handle('tours:list', async (_event, page, limit, filters, accessToken: string) => {
   try {
-    return await backendListTours(page, limit, accessToken);
+    return await backendListTours(page, limit, filters, accessToken);
   } catch (err) {
     throw new Error(err instanceof Error ? err.message : 'list failed');
   }
@@ -190,6 +207,14 @@ ipcMain.handle('bookings:calendar', async (_event, accessToken: string) => {
     return await backendGetBookingsCalendar(accessToken);
   } catch (err) {
     throw new Error(err instanceof Error ? err.message : 'calendar failed');
+  }
+});
+
+ipcMain.handle('bookings:stats', async (_event, accessToken: string) => {
+  try {
+    return await backendGetBookingsStats(accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'stats failed');
   }
 });
 
@@ -268,6 +293,78 @@ ipcMain.handle('customers:search', async (_event, q: string, accessToken: string
   }
 });
 
+ipcMain.handle('customers:list', async (_event, page: number, limit: number, q: string, accessToken: string) => {
+  try {
+    return await backendListCustomers(page, limit, q, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'list failed');
+  }
+});
+
+ipcMain.handle('customers:get', async (_event, id: string, accessToken: string) => {
+  try {
+    return await backendGetCustomer(id, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'get failed');
+  }
+});
+
+ipcMain.handle('customers:create', async (_event, payload, accessToken: string) => {
+  try {
+    return await backendCreateCustomer(payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'create failed');
+  }
+});
+
+ipcMain.handle('customers:update', async (_event, id: string, payload, accessToken: string) => {
+  try {
+    return await backendUpdateCustomer(id, payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'update failed');
+  }
+});
+
+ipcMain.handle('customers:delete', async (_event, id: string, accessToken: string) => {
+  try {
+    return await backendDeleteCustomer(id, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'delete failed');
+  }
+});
+
+ipcMain.handle('categories:list', async (_event, page: number, limit: number, accessToken: string) => {
+  try {
+    return await backendListCategories(page, limit, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'list failed');
+  }
+});
+
+ipcMain.handle('categories:create', async (_event, payload, accessToken: string) => {
+  try {
+    return await backendCreateCategory(payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'create failed');
+  }
+});
+
+ipcMain.handle('categories:update', async (_event, id: string, payload, accessToken: string) => {
+  try {
+    return await backendUpdateCategory(id, payload, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'update failed');
+  }
+});
+
+ipcMain.handle('categories:delete', async (_event, id: string, accessToken: string) => {
+  try {
+    return await backendDeleteCategory(id, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'delete failed');
+  }
+});
+
 ipcMain.handle('audit:list', async (_event, accessToken: string) => {
   try {
     return await backendListAudit(accessToken);
@@ -324,9 +421,9 @@ ipcMain.handle('profile:change-password', async (_event, payload, accessToken: s
   }
 });
 
-ipcMain.handle('admins:list', async (_event, page: number, limit: number, accessToken: string) => {
+ipcMain.handle('admins:list', async (_event, page, limit, filters, accessToken: string) => {
   try {
-    return await backendListAdmins(page, limit, accessToken);
+    return await backendListAdmins(page, limit, filters, accessToken);
   } catch (err) {
     throw new Error(err instanceof Error ? err.message : 'list failed');
   }
@@ -353,6 +450,22 @@ ipcMain.handle('admins:delete', async (_event, id: string, accessToken: string) 
     return await backendDeleteAdmin(id, accessToken);
   } catch (err) {
     throw new Error(err instanceof Error ? err.message : 'delete failed');
+  }
+});
+
+ipcMain.handle('admins:reset-password', async (_event, id: string, accessToken: string) => {
+  try {
+    return await backendResetAdminPassword(id, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'reset password failed');
+  }
+});
+
+ipcMain.handle('admins:count-recovery-requests', async (_event, accessToken: string) => {
+  try {
+    return await backendCountAdminRecoveryRequests(accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'count failed');
   }
 });
 
