@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { createBookingSchemaPublic } from './bookings.schema';
-import { createBooking, BookingServiceError } from '../lib/bookings';
+import { createBooking, serializeBooking, BookingServiceError } from '../lib/bookings';
 
 export const publicRouter = Router();
 
@@ -57,14 +57,36 @@ publicRouter.post('/bookings', async (req, res, next) => {
       status: 'PENDING',
     });
 
+    const serialized = serializeBooking(booking);
+
     res.status(201).json({
-      reference: booking.reference,
-      tourId: booking.tourId,
-      participants: booking.participants,
-      startDate: booking.startDate,
-      totalPrice: booking.totalPrice,
-      status: booking.status,
-      createdAt: booking.createdAt,
+      reference: serialized.reference,
+      // tourId is kept at the top level for backward compatibility with the existing external
+      // booking-site consumer of this endpoint (it lives outside this repo, so its exact field
+      // usage isn't visible here) — tour.id below is the richer, preferred form going forward.
+      tourId: serialized.tourId,
+      status: serialized.status,
+      participants: serialized.participants,
+      startDate: serialized.startDate,
+      finishDate: serialized.finishDate,
+      totalPrice: serialized.totalPrice,
+      createdAt: serialized.createdAt,
+      tour: {
+        id: serialized.tour.id,
+        title: serialized.tour.title,
+        slug: serialized.tour.slug,
+        imageCover: serialized.tour.imageCover,
+        duration: serialized.tour.duration,
+      },
+      // Deliberately excludes customer.id: this endpoint never accepts a customerId back in
+      // (see createBookingSchemaPublic), and the booking's own reference is the purpose-built
+      // handle for the external client — an internal PK with no matching lookup capability
+      // would just be unnecessary exposure.
+      customer: {
+        name: serialized.customer.name,
+        email: serialized.customer.email,
+        phone: serialized.customer.phone,
+      },
     });
   } catch (err) {
     if (err instanceof BookingServiceError) {

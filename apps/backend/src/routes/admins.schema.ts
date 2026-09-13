@@ -28,6 +28,10 @@ export const listAdminsQuerySchema = z.object({
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
     .optional(),
+  hasRecoveryRequest: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
   q: z.string().optional(),
 });
 

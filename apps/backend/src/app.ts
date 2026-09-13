@@ -1,10 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import compression from 'compression';
+import helmet from 'helmet';
 import { errorHandler } from './middleware/errorHandler';
 import { auditLog } from './middleware/auditLog';
+import { globalLimiter } from './middleware/rateLimit';
 import { authRouter } from './routes/auth';
 import { toursRouter } from './routes/tours';
+import { categoriesRouter } from './routes/categories';
 import { customersRouter } from './routes/customers';
 import { bookingsRouter } from './routes/bookings';
 import { publicRouter } from './routes/public';
@@ -19,6 +22,7 @@ export function createApp() {
   // Mounted first so durationMs reflects true full server-side handling time for
   // every request, including ones that 404 before reaching a router.
   app.use(auditLog);
+  app.use(helmet());
   app.use(compression());
   app.use(cors());
   app.use(express.json());
@@ -27,8 +31,13 @@ export function createApp() {
     res.json({ status: 'ok' });
   });
 
+  // Everything below is subject to the global per-IP rate limit; /health above stays
+  // unlimited for uptime checks.
+  app.use(globalLimiter);
+
   app.use('/auth', authRouter);
   app.use('/tours', toursRouter);
+  app.use('/categories', categoriesRouter);
   app.use('/customers', customersRouter);
   app.use('/bookings', bookingsRouter);
   app.use('/public', ipAllowlist, publicRouter);

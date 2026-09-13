@@ -188,4 +188,150 @@ describe('POST /public/bookings', () => {
     },
     DB_HEAVY_TEST_TIMEOUT,
   );
+
+  it(
+    'rejects participants over the tour maxGroupSize',
+    async () => {
+      process.env.PUBLIC_API_IP_ALLOWLIST = ALLOWED;
+      const tour = await prisma.tour.create({
+        data: {
+          title: `Public Bookings Capacity Tour ${Date.now()}`,
+          slug: `public-bookings-capacity-tour-${Date.now()}`,
+          description: 'desc',
+          price: 100,
+          isActive: true,
+          maxGroupSize: 2,
+        },
+      });
+      createdTourIds.push(tour.id);
+
+      const res = await request(app)
+        .post('/public/bookings')
+        .send({
+          tourId: tour.id,
+          participants: 3,
+          startDate: '2027-07-01T00:00:00.000Z',
+          customer: { email: `public-bookings-capacity-${Date.now()}@example.com`, name: 'X' },
+        });
+      expect(res.status).toBe(400);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'rejects a startDate the tour does not offer, and accepts one that it does',
+    async () => {
+      process.env.PUBLIC_API_IP_ALLOWLIST = ALLOWED;
+      const base = Date.now();
+      const offeredDate = new Date('2027-08-01T00:00:00.000Z');
+      const tour = await prisma.tour.create({
+        data: {
+          title: `Public Bookings Scheduled Tour ${base}`,
+          slug: `public-bookings-scheduled-tour-${base}`,
+          description: 'desc',
+          price: 100,
+          isActive: true,
+          startDates: [offeredDate],
+        },
+      });
+      createdTourIds.push(tour.id);
+
+      const rejected = await request(app)
+        .post('/public/bookings')
+        .send({
+          tourId: tour.id,
+          participants: 1,
+          startDate: '2027-08-02T00:00:00.000Z',
+          customer: { email: `public-bookings-unoffered-${base}@example.com`, name: 'X' },
+        });
+      expect(rejected.status).toBe(400);
+
+      const acceptedEmail = `public-bookings-offered-${base}@example.com`;
+      const accepted = await request(app)
+        .post('/public/bookings')
+        .send({
+          tourId: tour.id,
+          participants: 1,
+          startDate: offeredDate.toISOString(),
+          customer: { email: acceptedEmail, name: 'X' },
+        });
+      expect(accepted.status).toBe(201);
+
+      const acceptedBooking = await prisma.booking.findUnique({ where: { reference: accepted.body.reference } });
+      if (acceptedBooking) createdBookingIds.push(acceptedBooking.id);
+      const acceptedCustomer = await prisma.customer.findUnique({ where: { email: acceptedEmail } });
+      if (acceptedCustomer) createdCustomerIds.push(acceptedCustomer.id);
+    },
+    MULTI_ROUND_TRIP_TIMEOUT,
+  );
+
+  it(
+    'normalizes email case so a repeat booking with different casing reuses the same Customer row',
+    async () => {
+      process.env.PUBLIC_API_IP_ALLOWLIST = ALLOWED;
+      const base = Date.now();
+      const lower = `public-bookings-case-${base}@example.com`;
+      const mixed = `Public-Bookings-Case-${base}@Example.com`;
+
+      const first = await request(app)
+        .post('/public/bookings')
+        .send({
+          tourId: activeTourId,
+          participants: 1,
+          startDate: '2027-07-01T00:00:00.000Z',
+          customer: { email: lower, name: 'Case Test' },
+        });
+      expect(first.status).toBe(201);
+      const firstBooking = await prisma.booking.findUnique({ where: { reference: first.body.reference } });
+      if (firstBooking) createdBookingIds.push(firstBooking.id);
+
+      const second = await request(app)
+        .post('/public/bookings')
+        .send({
+          tourId: activeTourId,
+          participants: 1,
+          startDate: '2027-07-02T00:00:00.000Z',
+          customer: { email: mixed, name: 'Case Test' },
+        });
+      expect(second.status).toBe(201);
+      const secondBooking = await prisma.booking.findUnique({ where: { reference: second.body.reference } });
+      if (secondBooking) createdBookingIds.push(secondBooking.id);
+
+      const matches = await prisma.customer.findMany({ where: { email: lower } });
+      expect(matches.length).toBe(1);
+      createdCustomerIds.push(matches[0].id);
+    },
+    MULTI_ROUND_TRIP_TIMEOUT,
+  );
+
+  it(
+    'returns a richer response shape including finishDate, tour, and customer details',
+    async () => {
+      process.env.PUBLIC_API_IP_ALLOWLIST = ALLOWED;
+      const email = `public-bookings-shape-${Date.now()}@example.com`;
+      const res = await request(app)
+        .post('/public/bookings')
+        .send({
+          tourId: activeTourId,
+          participants: 1,
+          startDate: '2027-07-01T00:00:00.000Z',
+          customer: { email, name: 'Shape Test', phone: '555-1111' },
+        });
+      expect(res.status).toBe(201);
+
+      const booking = await prisma.booking.findUnique({ where: { reference: res.body.reference } });
+      if (booking) createdBookingIds.push(booking.id);
+      const customer = await prisma.customer.findUnique({ where: { email } });
+      if (customer) createdCustomerIds.push(customer.id);
+
+      expect(res.body.tourId).toBe(activeTourId);
+      expect(res.body.finishDate).toBeDefined();
+      expect(res.body.tour.id).toBe(activeTourId);
+      expect(typeof res.body.tour.title).toBe('string');
+      expect(res.body.customer.name).toBe('Shape Test');
+      expect(res.body.customer.email).toBe(email);
+      expect(res.body.customer.id).toBeUndefined();
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
 });

@@ -19,11 +19,29 @@ toursRouter.get('/', requireAuth, async (req, res, next) => {
       return;
     }
 
-    const { page, limit } = parsed.data;
+    const { page, limit, q, isActive } = parsed.data;
     const skip = (page - 1) * limit;
 
-    const [tours, total] = await Promise.all([
+    const where: Prisma.TourWhereInput = {
+      ...(isActive !== undefined ? { isActive } : {}),
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q, mode: 'insensitive' as const } },
+              { slug: { contains: q, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+    };
+    // Respects q but not isActive, so every status tab's count reflects "how many
+    // match this search" regardless of which tab is currently selected.
+    const searchOnlyWhere: Prisma.TourWhereInput = q
+      ? { OR: [{ title: { contains: q, mode: 'insensitive' as const } }, { slug: { contains: q, mode: 'insensitive' as const } }] }
+      : {};
+
+    const [tours, total, activeCount, inactiveCount] = await Promise.all([
       prisma.tour.findMany({
+        where,
         orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
         skip,
         take: limit,
@@ -38,7 +56,9 @@ toursRouter.get('/', requireAuth, async (req, res, next) => {
           createdAt: true,
         },
       }),
-      prisma.tour.count(),
+      prisma.tour.count({ where }),
+      prisma.tour.count({ where: { ...searchOnlyWhere, isActive: true } }),
+      prisma.tour.count({ where: { ...searchOnlyWhere, isActive: false } }),
     ]);
 
     res.json({
@@ -47,6 +67,7 @@ toursRouter.get('/', requireAuth, async (req, res, next) => {
       page,
       limit,
       totalPages: Math.max(1, Math.ceil(total / limit)),
+      statusCounts: { ALL: activeCount + inactiveCount, ACTIVE: activeCount, INACTIVE: inactiveCount },
     });
   } catch (err) {
     next(err);

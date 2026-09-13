@@ -48,10 +48,19 @@ describe('GET /customers', () => {
     expect(res.status).toBe(401);
   });
 
-  it('rejects a missing q param', async () => {
-    const res = await request(app).get('/customers').set('Authorization', `Bearer ${accessToken}`);
-    expect(res.status).toBe(400);
-  });
+  it(
+    'returns a paginated list of everyone when q is omitted',
+    async () => {
+      const res = await request(app).get('/customers').set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.customers)).toBe(true);
+      expect(res.body).toHaveProperty('total');
+      expect(res.body).toHaveProperty('page');
+      expect(res.body).toHaveProperty('limit');
+      expect(res.body).toHaveProperty('totalPages');
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
 
   it(
     'matches by partial name, case-insensitive',

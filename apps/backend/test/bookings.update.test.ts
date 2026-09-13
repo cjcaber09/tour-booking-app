@@ -231,4 +231,51 @@ describe('PATCH /bookings/:id', () => {
     },
     DB_HEAVY_TEST_TIMEOUT,
   );
+
+  it(
+    'allows a startDate-only edit when the tour has no fixed schedule',
+    async () => {
+      const booking = await createBooking();
+      const res = await request(app)
+        .patch(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ startDate: '2027-09-01T00:00:00.000Z' });
+      expect(res.status).toBe(200);
+      expect(res.body.startDate).toBe('2027-09-01T00:00:00.000Z');
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'revalidates startDate against the tour\'s offered dates on PATCH, once the tour has a fixed schedule',
+    async () => {
+      const base = Date.now();
+      const offeredDate = new Date('2027-10-01T00:00:00.000Z');
+      const scheduledTour = await prisma.tour.create({
+        data: {
+          title: `Bookings Update Scheduled Tour ${base}`,
+          slug: `bookings-update-scheduled-tour-${base}`,
+          description: 'desc',
+          price: 100,
+          startDates: [offeredDate],
+        },
+      });
+      createdTourIds.push(scheduledTour.id);
+
+      const booking = await createBooking({ tourId: scheduledTour.id, startDate: offeredDate.toISOString() });
+
+      const rejected = await request(app)
+        .patch(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ startDate: '2027-10-02T00:00:00.000Z' });
+      expect(rejected.status).toBe(400);
+
+      const accepted = await request(app)
+        .patch(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ startDate: offeredDate.toISOString() });
+      expect(accepted.status).toBe(200);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
 });

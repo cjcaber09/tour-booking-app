@@ -86,7 +86,11 @@ describe('POST /bookings/:id/cancel', () => {
   it(
     'fully refunds a fully paid booking and sets paymentStatus to REFUNDED',
     async () => {
-      const booking = await createBooking({ amountPaid: 100, paymentStatus: 'PAID' });
+      // Explicit future startDate — createBooking()'s default of `new Date()` (today) already
+      // counts as "started" under todayIsPastOrEqualStartDate's >= semantics, which would
+      // incorrectly trip the paid-and-locked 409 this test isn't exercising.
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const booking = await createBooking({ startDate: tomorrow, amountPaid: 100, paymentStatus: 'PAID' });
       const res = await request(app)
         .post(`/bookings/${booking.id}/cancel`)
         .set('Authorization', `Bearer ${accessToken}`)
@@ -105,7 +109,8 @@ describe('POST /bookings/:id/cancel', () => {
   it(
     'partially refunds a booking and records the partial refundAmount',
     async () => {
-      const booking = await createBooking({ amountPaid: 100, paymentStatus: 'PAID' });
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const booking = await createBooking({ startDate: tomorrow, amountPaid: 100, paymentStatus: 'PAID' });
       const res = await request(app)
         .post(`/bookings/${booking.id}/cancel`)
         .set('Authorization', `Bearer ${accessToken}`)
