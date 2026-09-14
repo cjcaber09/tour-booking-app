@@ -14,6 +14,19 @@ const createdTourIds: string[] = [];
 const createdBookingIds: string[] = [];
 const createdCustomerIds: string[] = [];
 
+// The "max bookings per day" cap (default 1) counts CONFIRMED bookings per calendar
+// day, and every booking this file creates via POST /bookings lands as CONFIRMED —
+// so each one needs its own distinct day, or later creates would 409 against earlier
+// ones. Anchored far in the future (year 2090) so it can never collide with a
+// hardcoded date used elsewhere in the suite; `base` (this file's own beforeAll
+// timestamp) spreads different files/runs across a wide day range, and the per-call
+// counter guarantees every booking created within this file gets its own day.
+const dateAnchor = Date.now() % 10000;
+let dayOffset = 0;
+function uniqueStartDate(): string {
+  return new Date(Date.UTC(2090, 0, 1 + dateAnchor + dayOffset++)).toISOString();
+}
+
 beforeAll(async () => {
   ({ id: adminId, accessToken } = await createTestAdmin('Bookings Create Test Admin'));
 
@@ -73,7 +86,7 @@ describe('POST /bookings', () => {
         .send({
           tourId: activeTourId,
           participants: 2,
-          startDate: '2027-06-01T00:00:00.000Z',
+          startDate: uniqueStartDate(),
           customerId: existingCustomerId,
         });
 
@@ -98,7 +111,7 @@ describe('POST /bookings', () => {
         .send({
           tourId: activeTourId,
           participants: 1,
-          startDate: '2027-06-01T00:00:00.000Z',
+          startDate: uniqueStartDate(),
           customer: { email, name: 'Inline Customer', phone: '555-1234' },
         });
 
@@ -123,7 +136,7 @@ describe('POST /bookings', () => {
         .send({
           tourId: activeTourId,
           participants: 3,
-          startDate: '2027-06-01T00:00:00.000Z',
+          startDate: uniqueStartDate(),
           customerId: existingCustomerId,
         });
 
@@ -143,7 +156,7 @@ describe('POST /bookings', () => {
         .send({
           tourId: inactiveTourId,
           participants: 1,
-          startDate: '2027-06-01T00:00:00.000Z',
+          startDate: uniqueStartDate(),
           customerId: existingCustomerId,
         });
 
@@ -160,7 +173,7 @@ describe('POST /bookings', () => {
       .send({
         tourId: '00000000-0000-0000-0000-000000000000',
         participants: 1,
-        startDate: '2027-06-01T00:00:00.000Z',
+        startDate: uniqueStartDate(),
         customerId: existingCustomerId,
       });
     expect(res.status).toBe(400);
@@ -173,7 +186,7 @@ describe('POST /bookings', () => {
       .send({
         tourId: activeTourId,
         participants: 1,
-        startDate: '2027-06-01T00:00:00.000Z',
+        startDate: uniqueStartDate(),
         customerId: '00000000-0000-0000-0000-000000000000',
       });
     expect(res.status).toBe(400);
@@ -186,7 +199,7 @@ describe('POST /bookings', () => {
       .send({
         tourId: activeTourId,
         participants: 1,
-        startDate: '2027-06-01T00:00:00.000Z',
+        startDate: uniqueStartDate(),
         customerId: existingCustomerId,
         customer: { email: 'x@example.com', name: 'X' },
       });
@@ -200,7 +213,7 @@ describe('POST /bookings', () => {
       .send({
         tourId: activeTourId,
         participants: 1,
-        startDate: '2027-06-01T00:00:00.000Z',
+        startDate: uniqueStartDate(),
       });
     expect(res.status).toBe(400);
   });
@@ -214,7 +227,7 @@ describe('POST /bookings', () => {
         .send({
           tourId: activeTourId,
           participants: 1,
-          startDate: '2027-06-01T00:00:00.000Z',
+          startDate: uniqueStartDate(),
           customerId: existingCustomerId,
         });
       createdBookingIds.push(first.body.id);
@@ -225,7 +238,7 @@ describe('POST /bookings', () => {
         .send({
           tourId: activeTourId,
           participants: 1,
-          startDate: '2027-06-01T00:00:00.000Z',
+          startDate: uniqueStartDate(),
           customerId: existingCustomerId,
         });
       createdBookingIds.push(second.body.id);

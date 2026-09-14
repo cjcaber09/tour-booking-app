@@ -2,6 +2,7 @@ import { Prisma, PaymentStatus, BookingStatus } from '@prisma/client';
 import { prisma } from './prisma';
 import { generateUniqueBookingReference } from './bookingReference';
 import { normalizeEmail } from './customers';
+import { getOrCreateSettings } from './settings';
 
 export class BookingServiceError extends Error {
   constructor(
@@ -108,10 +109,32 @@ export const bookingListSelect = {
   customer: { select: { id: true, name: true, email: true } },
 } satisfies Prisma.BookingSelect;
 
-function dateOnly(date: Date): Date {
+export function dateOnly(date: Date): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+// Bookings that occupy a slot for the "max bookings per day" cap — PENDING bookings
+// are deliberately excluded (they don't guard a date until an admin confirms them;
+// see assertDailyBookingCapNotExceeded), as is CANCELLED (frees the date back up).
+const CAP_COUNTED_STATUSES: BookingStatus[] = [BookingStatus.CONFIRMED, BookingStatus.ONGOING, BookingStatus.COMPLETED];
+
+export async function assertDailyBookingCapNotExceeded(startDate: Date) {
+  const settings = await getOrCreateSettings();
+  const cap = settings.maxBookingsPerDay;
+  const start = dateOnly(startDate);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  const count = await prisma.booking.count({
+    where: { startDate: { gte: start, lt: end }, status: { in: CAP_COUNTED_STATUSES } },
+  });
+  if (count >= cap) {
+    throw new BookingServiceError(
+      409,
+      `this date already has the maximum of ${cap} confirmed booking${cap === 1 ? '' : 's'} allowed — choose a different date, or an admin can raise the daily cap in Settings`,
+    );
+  }
 }
 
 export function computeFinishDate(startDate: Date, durationDays: number | null): Date {
@@ -225,6 +248,15 @@ export async function createBooking(params: CreateBookingParams) {
     resolveCustomer(params.customerInput),
     generateUniqueBookingReference(),
   ]);
+
+  // Only a booking created straight into CONFIRMED (i.e. admin-created) occupies a
+  // day's slot immediately — a publicly-created PENDING booking doesn't guard the
+  // date until an admin confirms it (see assertDailyBookingCapNotExceeded). Checked
+  // after the above resolve, so a genuinely invalid tourId/customerId still surfaces
+  // its own error instead of being masked by an unrelated full-day rejection.
+  if (params.status === BookingStatus.CONFIRMED) {
+    await assertDailyBookingCapNotExceeded(params.startDate);
+  }
 
   return prisma.booking.create({
     data: {

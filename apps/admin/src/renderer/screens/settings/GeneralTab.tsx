@@ -55,6 +55,7 @@ function GeneralTabForm({ settings }: { settings: AppSettingsDto }) {
   const [language, setLanguage] = useState(settings.language);
   const [currency, setCurrency] = useState(settings.currency);
   const [fiscalYearStartMonth, setFiscalYearStartMonth] = useState(settings.fiscalYearStartMonth);
+  const [maxBookingsPerDay, setMaxBookingsPerDay] = useState(String(settings.maxBookingsPerDay));
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState('');
@@ -137,6 +138,7 @@ function GeneralTabForm({ settings }: { settings: AppSettingsDto }) {
         language,
         currency,
         fiscalYearStartMonth,
+        maxBookingsPerDay: Number(maxBookingsPerDay),
       };
 
       if (logoFile) {
@@ -342,6 +344,20 @@ function GeneralTabForm({ settings }: { settings: AppSettingsDto }) {
             ))}
           </SelectContent>
         </Select>
+      </label>
+
+      <label className="form-field">
+        <span>Max bookings per day</span>
+        <input
+          className="neu-field"
+          name="maxBookingsPerDay"
+          type="number"
+          min={1}
+          placeholder="e.g. 1"
+          value={maxBookingsPerDay}
+          onChange={(e) => setMaxBookingsPerDay(e.target.value)}
+        />
+        {fieldErrors.maxBookingsPerDay && <p className="form-field-error">{fieldErrors.maxBookingsPerDay}</p>}
       </label>
 
       <div className="form-actions">

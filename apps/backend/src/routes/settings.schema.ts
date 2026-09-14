@@ -24,6 +24,7 @@ export const updateSettingsSchema = z.object({
   language: z.enum(LANGUAGE_OPTIONS).optional(),
   currency: z.enum(CURRENCY_OPTIONS).optional(),
   fiscalYearStartMonth: z.number().int().min(1).max(12).optional(),
+  maxBookingsPerDay: z.number().int().min(1).optional(),
 });
 
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
