@@ -2,30 +2,21 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin, deleteTestAdmin, TEST_PASSWORD, DB_HEAVY_TEST_TIMEOUT } from './helpers';
 
 const app = createApp();
-const testEmail = `profile-change-password-test-${Date.now()}@example.com`;
-const originalPassword = 'correct-horse-battery-staple';
+const originalPassword = TEST_PASSWORD;
+let testEmail: string;
 let adminId: string;
 let accessToken: string;
 
 beforeAll(async () => {
-  const admin = await prisma.admin.create({
-    data: {
-      email: testEmail,
-      passwordHash: await hashPassword(originalPassword),
-      name: 'Change Password Test Admin',
-    },
-  });
-  adminId = admin.id;
-  accessToken = signAccessToken({ adminId });
+  ({ id: adminId, email: testEmail, accessToken } = await createTestAdmin('Change Password Test Admin'));
 });
 
 afterAll(async () => {
   await prisma.refreshToken.deleteMany({ where: { adminId } });
-  await prisma.admin.delete({ where: { id: adminId } });
+  await deleteTestAdmin(adminId);
   await prisma.$disconnect();
 });
 
@@ -54,26 +45,32 @@ describe('POST /profile/change-password', () => {
     expect(res.status).toBe(400);
   });
 
-  it('changes the password, revokes refresh tokens, and old credentials stop working', async () => {
-    const loginRes = await request(app).post('/auth/login').send({ email: testEmail, password: originalPassword });
-    expect(loginRes.status).toBe(200);
-    const oldRefreshToken = loginRes.body.refreshToken as string;
+  it(
+    'changes the password, revokes refresh tokens, and old credentials stop working',
+    async () => {
+      const loginRes = await request(app).post('/auth/login').send({ email: testEmail, password: originalPassword });
+      expect(loginRes.status).toBe(200);
+      const oldRefreshToken = loginRes.body.refreshToken as string;
 
-    const changeRes = await request(app)
-      .post('/profile/change-password')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({ currentPassword: originalPassword, newPassword: 'brand-new-password' });
-    expect(changeRes.status).toBe(204);
+      const changeRes = await request(app)
+        .post('/profile/change-password')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ currentPassword: originalPassword, newPassword: 'brand-new-password' });
+      expect(changeRes.status).toBe(204);
 
-    const oldLoginRes = await request(app).post('/auth/login').send({ email: testEmail, password: originalPassword });
-    expect(oldLoginRes.status).toBe(401);
+      const oldLoginRes = await request(app)
+        .post('/auth/login')
+        .send({ email: testEmail, password: originalPassword });
+      expect(oldLoginRes.status).toBe(401);
 
-    const refreshRes = await request(app).post('/auth/refresh').send({ refreshToken: oldRefreshToken });
-    expect(refreshRes.status).toBe(401);
+      const refreshRes = await request(app).post('/auth/refresh').send({ refreshToken: oldRefreshToken });
+      expect(refreshRes.status).toBe(401);
 
-    const newLoginRes = await request(app)
-      .post('/auth/login')
-      .send({ email: testEmail, password: 'brand-new-password' });
-    expect(newLoginRes.status).toBe(200);
-  });
+      const newLoginRes = await request(app)
+        .post('/auth/login')
+        .send({ email: testEmail, password: 'brand-new-password' });
+      expect(newLoginRes.status).toBe(200);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
 });

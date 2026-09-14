@@ -2,44 +2,27 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken, signRefreshToken, hashToken, refreshTokenExpiryDate } from '../src/lib/tokens';
+import { signRefreshToken, hashToken, refreshTokenExpiryDate } from '../src/lib/tokens';
+import { createTestAdmin, TEST_PASSWORD, DB_HEAVY_TEST_TIMEOUT } from './helpers';
 
 const app = createApp();
-const testEmailBase = `admins-reset-password-test-${Date.now()}`;
-const password = 'correct-horse-battery-staple';
+const password = TEST_PASSWORD;
 let adminId: string;
 let adminToken: string;
 let guideId: string;
 let guideToken: string;
 const allIds: string[] = [];
 
-const DB_HEAVY_TEST_TIMEOUT = 15000;
-
 beforeAll(async () => {
   const [admin, guide] = await Promise.all([
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-admin@example.com`,
-        passwordHash: await hashPassword(password),
-        name: 'Reset Password Test Admin',
-        role: 'ADMIN',
-      },
-    }),
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-guide@example.com`,
-        passwordHash: await hashPassword(password),
-        name: 'Reset Password Test Guide',
-        role: 'GUIDE',
-      },
-    }),
+    createTestAdmin('Reset Password Test Admin', { role: 'ADMIN' }),
+    createTestAdmin('Reset Password Test Guide', { role: 'GUIDE' }),
   ]);
   adminId = admin.id;
+  adminToken = admin.accessToken;
   guideId = guide.id;
+  guideToken = guide.accessToken;
   allIds.push(adminId, guideId);
-  adminToken = signAccessToken({ adminId });
-  guideToken = signAccessToken({ adminId: guideId });
 });
 
 afterAll(async () => {
@@ -81,15 +64,7 @@ describe('POST /admins/:id/reset-password', () => {
   it(
     'resets the target password, revokes their sessions, and clears any pending recovery request',
     async () => {
-      const target = await prisma.admin.create({
-        data: {
-          email: `${testEmailBase}-target@example.com`,
-          passwordHash: await hashPassword(password),
-          name: 'Reset Target',
-          role: 'GUIDE',
-          recoveryRequestedAt: new Date(),
-        },
-      });
+      const target = await createTestAdmin('Reset Target', { role: 'GUIDE', data: { recoveryRequestedAt: new Date() } });
       const targetId = target.id;
       const targetEmail = target.email;
       allIds.push(targetId);

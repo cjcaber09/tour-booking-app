@@ -2,24 +2,20 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
+import { createTestAdmin, deleteTestAdmin, TEST_PASSWORD } from './helpers';
 
 const app = createApp();
-const testEmail = `me-test-${Date.now()}@example.com`;
-const testPassword = 'correct-horse-battery-staple';
+const testPassword = TEST_PASSWORD;
+let testEmail: string;
+let adminId: string;
 
 beforeAll(async () => {
-  await prisma.admin.create({
-    data: { email: testEmail, passwordHash: await hashPassword(testPassword), name: 'Test Admin' },
-  });
+  ({ id: adminId, email: testEmail } = await createTestAdmin('Me Test Admin'));
 });
 
 afterAll(async () => {
-  const admin = await prisma.admin.findUnique({ where: { email: testEmail } });
-  if (admin) {
-    await prisma.refreshToken.deleteMany({ where: { adminId: admin.id } });
-    await prisma.admin.delete({ where: { id: admin.id } });
-  }
+  await prisma.refreshToken.deleteMany({ where: { adminId } });
+  await deleteTestAdmin(adminId);
   await prisma.$disconnect();
 });
 
@@ -35,7 +31,7 @@ describe('GET /auth/me', () => {
     expect(meRes.body).toEqual({
       id: expect.any(String),
       email: testEmail,
-      name: 'Test Admin',
+      name: 'Me Test Admin',
       role: 'ADMIN',
       avatarUrl: null,
       phone: null,

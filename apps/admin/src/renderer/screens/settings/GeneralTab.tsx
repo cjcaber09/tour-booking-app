@@ -3,7 +3,7 @@ import { useAuth } from '../../states/authStore';
 import { useAppSettings } from '../../states/appSettingsStore';
 import { toast } from '../../toast';
 import { useRequestError } from '../../lib/useRequestError';
-import { cn } from '../../lib/utils';
+import { cn, trimStrings } from '../../lib/utils';
 import { fileToBase64 } from '../../lib/file';
 import { Button } from '../../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -150,7 +150,7 @@ function GeneralTabForm({ settings }: { settings: AppSettingsDto }) {
         }
       }
 
-      await window.settingsAPI.update(payload, session.accessToken);
+      await window.settingsAPI.update(trimStrings(payload), session.accessToken);
       await refresh();
       toast.success('Settings saved.');
     } catch (err) {

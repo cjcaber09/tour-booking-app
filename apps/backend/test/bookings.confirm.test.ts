@@ -2,12 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpers';
 
 const app = createApp();
-const testEmail = `bookings-confirm-test-${Date.now()}@example.com`;
-const testPassword = 'correct-horse-battery-staple';
 let adminId: string;
 let accessToken: string;
 let tourId: string;
@@ -15,8 +12,6 @@ let customerId: string;
 const createdTourIds: string[] = [];
 const createdCustomerIds: string[] = [];
 const createdBookingIds: string[] = [];
-
-const DB_HEAVY_TEST_TIMEOUT = 15000;
 
 async function createPendingBooking() {
   const booking = await prisma.booking.create({
@@ -35,11 +30,7 @@ async function createPendingBooking() {
 }
 
 beforeAll(async () => {
-  const admin = await prisma.admin.create({
-    data: { email: testEmail, passwordHash: await hashPassword(testPassword), name: 'Bookings Confirm Test Admin' },
-  });
-  adminId = admin.id;
-  accessToken = signAccessToken({ adminId });
+  ({ id: adminId, accessToken } = await createTestAdmin('Bookings Confirm Test Admin'));
 
   const base = Date.now();
   const tour = await prisma.tour.create({
@@ -64,7 +55,7 @@ afterAll(async () => {
   await prisma.booking.deleteMany({ where: { id: { in: createdBookingIds } } });
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
-  await prisma.admin.delete({ where: { id: adminId } });
+  await deleteTestAdmin(adminId);
   await prisma.$disconnect();
 });
 

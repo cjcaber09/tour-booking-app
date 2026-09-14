@@ -1,47 +1,23 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { createClient } from '@supabase/supabase-js';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT, BUCKET, supabase, extractStoragePath } from './helpers';
 
 const app = createApp();
-const BUCKET = 'andy_booking';
-const DB_HEAVY_TEST_TIMEOUT = 15000;
-
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
-const testEmail = `tours-upload-images-test-${Date.now()}@example.com`;
 let adminId: string;
 let accessToken: string;
 const uploadedPaths: string[] = [];
 
-function extractStoragePath(signedUrl: string): string {
-  const marker = `/object/sign/${BUCKET}/`;
-  const idx = signedUrl.indexOf(marker);
-  if (idx === -1) {
-    throw new Error(`unexpected signed url format: ${signedUrl}`);
-  }
-  return decodeURIComponent(signedUrl.slice(idx + marker.length).split('?')[0]);
-}
-
 beforeAll(async () => {
-  const admin = await prisma.admin.create({
-    data: {
-      email: testEmail,
-      passwordHash: await hashPassword('correct-horse-battery-staple'),
-      name: 'Upload Images Test Admin',
-    },
-  });
-  adminId = admin.id;
-  accessToken = signAccessToken({ adminId });
+  ({ id: adminId, accessToken } = await createTestAdmin('Upload Images Test Admin'));
 });
 
 afterAll(async () => {
   if (uploadedPaths.length > 0) {
     await supabase.storage.from(BUCKET).remove(uploadedPaths);
   }
-  await prisma.admin.delete({ where: { id: adminId } });
+  await deleteTestAdmin(adminId);
   await prisma.$disconnect();
 });
 

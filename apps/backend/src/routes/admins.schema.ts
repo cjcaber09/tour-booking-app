@@ -1,17 +1,17 @@
 import { z } from 'zod';
 
 export const createAdminSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
+  name: z.string().trim().min(1).max(200),
+  email: z.string().trim().toLowerCase().email(),
   role: z.enum(['ADMIN', 'LEAD_GUIDE', 'GUIDE', 'STAFF']),
-  phone: z.string().nullable().optional(),
+  phone: z.string().trim().max(30).nullable().optional(),
 });
 
 export type CreateAdminInput = z.infer<typeof createAdminSchema>;
 
 export const updateAdminSchema = z.object({
-  name: z.string().min(1).optional(),
-  phone: z.string().nullable().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+  phone: z.string().trim().max(30).nullable().optional(),
   role: z.enum(['ADMIN', 'LEAD_GUIDE', 'GUIDE', 'STAFF']).optional(),
   isActive: z.boolean().optional(),
 });
@@ -32,7 +32,7 @@ export const listAdminsQuerySchema = z.object({
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
     .optional(),
-  q: z.string().optional(),
+  q: z.string().trim().max(200).optional(),
 });
 
 export type ListAdminsQuery = z.infer<typeof listAdminsQuerySchema>;

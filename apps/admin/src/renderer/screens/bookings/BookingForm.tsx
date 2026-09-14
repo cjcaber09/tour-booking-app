@@ -4,6 +4,7 @@ import { format, parse } from 'date-fns';
 import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
 import { useRequestError } from '../../lib/useRequestError';
+import { trimStrings } from '../../lib/utils';
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Calendar } from '../../components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -160,11 +161,12 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
 
       if (form.notes) payload.notes = form.notes;
 
+      const sanitizedPayload = trimStrings(payload);
       if (isEditing && booking) {
-        await window.bookingsAPI.update(booking.id, payload, session.accessToken);
+        await window.bookingsAPI.update(booking.id, sanitizedPayload, session.accessToken);
         toast.success('Booking updated.');
       } else {
-        await window.bookingsAPI.create(payload, session.accessToken);
+        await window.bookingsAPI.create(sanitizedPayload, session.accessToken);
         toast.success('Booking created.');
       }
       onSaved();

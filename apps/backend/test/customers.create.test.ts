@@ -2,27 +2,20 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpers';
 
 const app = createApp();
-const testEmail = `customers-create-test-${Date.now()}@example.com`;
-const testPassword = 'correct-horse-battery-staple';
 let adminId: string;
 let accessToken: string;
 const createdCustomerIds: string[] = [];
 
 beforeAll(async () => {
-  const admin = await prisma.admin.create({
-    data: { email: testEmail, passwordHash: await hashPassword(testPassword), name: 'Customers Create Test Admin' },
-  });
-  adminId = admin.id;
-  accessToken = signAccessToken({ adminId });
+  ({ id: adminId, accessToken } = await createTestAdmin('Customers Create Test Admin'));
 });
 
 afterAll(async () => {
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
-  await prisma.admin.delete({ where: { id: adminId } });
+  await deleteTestAdmin(adminId);
   await prisma.$disconnect();
 });
 
@@ -58,7 +51,7 @@ describe('POST /customers', () => {
       expect(res.body.phone).toBe('555-0100');
       createdCustomerIds.push(res.body.id);
     },
-    15000,
+    DB_HEAVY_TEST_TIMEOUT,
   );
 
   it(
@@ -79,6 +72,6 @@ describe('POST /customers', () => {
         .send({ name: 'Duplicate', email: email.toUpperCase() });
       expect(res.status).toBe(409);
     },
-    15000,
+    DB_HEAVY_TEST_TIMEOUT,
   );
 });

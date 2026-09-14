@@ -11,11 +11,12 @@ export const LANGUAGE_OPTIONS = ['en'] as const;
 const VALID_TIMEZONES = new Set([...Intl.supportedValuesOf('timeZone'), 'UTC']);
 
 export const updateSettingsSchema = z.object({
-  appName: z.string().min(1).optional(),
-  companyName: z.string().min(1).optional(),
-  logoUrl: z.string().url().nullable().optional(),
+  appName: z.string().trim().min(1).max(100).optional(),
+  companyName: z.string().trim().min(1).max(100).optional(),
+  logoUrl: z.string().trim().url().nullable().optional(),
   timezone: z
     .string()
+    .trim()
     .refine((tz) => VALID_TIMEZONES.has(tz), { message: 'unknown timezone' })
     .optional(),
   dateFormat: z.enum(DATE_FORMAT_OPTIONS).optional(),

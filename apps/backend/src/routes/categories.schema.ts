@@ -8,13 +8,13 @@ export const listCategoriesQuerySchema = z.object({
 export type ListCategoriesQuery = z.infer<typeof listCategoriesQuerySchema>;
 
 export const createCategorySchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1).max(100),
 });
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 
 export const updateCategorySchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1).max(100),
 });
 
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;

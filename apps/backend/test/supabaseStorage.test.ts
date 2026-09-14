@@ -1,21 +1,8 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { createClient } from '@supabase/supabase-js';
 import { uploadTourImage, uploadLogo, uploadAvatar } from '../src/lib/supabaseStorage';
+import { BUCKET, supabase, extractStoragePath, DB_HEAVY_TEST_TIMEOUT } from './helpers';
 
-const BUCKET = 'andy_booking';
-const DB_HEAVY_TEST_TIMEOUT = 15000;
-
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
 const uploadedPaths: string[] = [];
-
-function extractStoragePath(signedUrl: string): string {
-  const marker = `/object/sign/${BUCKET}/`;
-  const idx = signedUrl.indexOf(marker);
-  if (idx === -1) {
-    throw new Error(`unexpected signed url format: ${signedUrl}`);
-  }
-  return decodeURIComponent(signedUrl.slice(idx + marker.length).split('?')[0]);
-}
 
 afterAll(async () => {
   if (uploadedPaths.length > 0) {

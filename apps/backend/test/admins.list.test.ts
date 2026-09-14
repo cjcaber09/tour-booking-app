@@ -2,11 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin } from './helpers';
 
 const app = createApp();
-const testEmailBase = `admins-list-test-${Date.now()}`;
 let adminId: string;
 let adminToken: string;
 let guideId: string;
@@ -16,38 +14,16 @@ const allIds: string[] = [];
 
 beforeAll(async () => {
   const [admin, guide, suspended] = await Promise.all([
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-admin@example.com`,
-        passwordHash: await hashPassword('correct-horse-battery-staple'),
-        name: 'Admins List Test Admin',
-        role: 'ADMIN',
-      },
-    }),
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-guide-zzz@example.com`,
-        passwordHash: await hashPassword('correct-horse-battery-staple'),
-        name: 'Zendaya Guide List Match',
-        role: 'GUIDE',
-      },
-    }),
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-suspended@example.com`,
-        passwordHash: await hashPassword('correct-horse-battery-staple'),
-        name: 'Suspended Lead',
-        role: 'LEAD_GUIDE',
-        isActive: false,
-      },
-    }),
+    createTestAdmin('Admins List Test Admin', { role: 'ADMIN' }),
+    createTestAdmin('Zendaya Guide List Match', { role: 'GUIDE' }),
+    createTestAdmin('Suspended Lead', { role: 'LEAD_GUIDE', data: { isActive: false } }),
   ]);
   adminId = admin.id;
   guideId = guide.id;
   suspendedId = suspended.id;
   allIds.push(adminId, guideId, suspendedId);
-  adminToken = signAccessToken({ adminId });
-  guideToken = signAccessToken({ adminId: guideId });
+  adminToken = admin.accessToken;
+  guideToken = guide.accessToken;
 });
 
 afterAll(async () => {

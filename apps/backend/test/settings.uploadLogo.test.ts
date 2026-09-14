@@ -1,55 +1,25 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { createClient } from '@supabase/supabase-js';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin, DB_HEAVY_TEST_TIMEOUT, BUCKET, supabase, extractStoragePath } from './helpers';
 
 const app = createApp();
-const BUCKET = 'andy_booking';
-const DB_HEAVY_TEST_TIMEOUT = 15000;
-
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
-const testEmailBase = `settings-upload-logo-test-${Date.now()}`;
 let adminId: string;
 let adminToken: string;
 let guideId: string;
 let guideToken: string;
 const uploadedPaths: string[] = [];
 
-function extractStoragePath(signedUrl: string): string {
-  const marker = `/object/sign/${BUCKET}/`;
-  const idx = signedUrl.indexOf(marker);
-  if (idx === -1) {
-    throw new Error(`unexpected signed url format: ${signedUrl}`);
-  }
-  return decodeURIComponent(signedUrl.slice(idx + marker.length).split('?')[0]);
-}
-
 beforeAll(async () => {
   const [admin, guide] = await Promise.all([
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-admin@example.com`,
-        passwordHash: await hashPassword('correct-horse-battery-staple'),
-        name: 'Upload Logo Test Admin',
-        role: 'ADMIN',
-      },
-    }),
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-guide@example.com`,
-        passwordHash: await hashPassword('correct-horse-battery-staple'),
-        name: 'Upload Logo Test Guide',
-        role: 'GUIDE',
-      },
-    }),
+    createTestAdmin('Upload Logo Test Admin', { role: 'ADMIN' }),
+    createTestAdmin('Upload Logo Test Guide', { role: 'GUIDE' }),
   ]);
   adminId = admin.id;
   guideId = guide.id;
-  adminToken = signAccessToken({ adminId });
-  guideToken = signAccessToken({ adminId: guideId });
+  adminToken = admin.accessToken;
+  guideToken = guide.accessToken;
 });
 
 afterAll(async () => {

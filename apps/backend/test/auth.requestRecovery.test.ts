@@ -2,11 +2,10 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
+import { createTestAdmin, deleteTestAdmin } from './helpers';
 
 const app = createApp();
-const testEmail = `auth-request-recovery-test-${Date.now()}@example.com`;
-const testPassword = 'correct-horse-battery-staple';
+let testEmail: string;
 let adminId: string;
 
 const originalNodeEnv = process.env.NODE_ENV;
@@ -16,14 +15,11 @@ afterEach(() => {
 });
 
 beforeAll(async () => {
-  const admin = await prisma.admin.create({
-    data: { email: testEmail, passwordHash: await hashPassword(testPassword), name: 'Request Recovery Test Admin' },
-  });
-  adminId = admin.id;
+  ({ id: adminId, email: testEmail } = await createTestAdmin('Request Recovery Test Admin'));
 });
 
 afterAll(async () => {
-  await prisma.admin.delete({ where: { id: adminId } });
+  await deleteTestAdmin(adminId);
   await prisma.$disconnect();
 });
 

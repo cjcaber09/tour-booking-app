@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
 import { useRequestError } from '../../lib/useRequestError';
+import { trimStrings } from '../../lib/utils';
 import { Button } from '../../components/ui/button';
 import type { CustomerListItem, CreateCustomerPayload } from '../../../preload';
 
@@ -28,7 +29,8 @@ export function CustomerForm({ customer, onCancel, onSaved }: CustomerFormProps)
     }
     setSubmitting(true);
     try {
-      const payload: CreateCustomerPayload = { name, email, phone: phone || null };
+      const trimmedPhone = phone.trim();
+      const payload: CreateCustomerPayload = trimStrings({ name, email, phone: trimmedPhone || null });
       if (isEditing && customer) {
         await window.customersAPI.update(customer.id, payload, session.accessToken);
         toast.success('Customer updated.');
