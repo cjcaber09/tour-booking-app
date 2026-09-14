@@ -10,16 +10,18 @@ import {
 } from '../lib/tokens';
 import { requireAuth } from '../middleware/auth';
 import { loginLimiter, recoveryLimiter } from '../middleware/rateLimit';
+import { loginSchema, requestRecoverySchema, refreshTokenBodySchema } from './auth.schema';
 
 export const authRouter = Router();
 
 authRouter.post('/login', loginLimiter, async (req, res, next) => {
   try {
-    const { email, password } = req.body as { email?: string; password?: string };
-    if (!email || !password) {
-      res.status(400).json({ error: 'email and password are required' });
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation failed', details: parsed.error.flatten().fieldErrors });
       return;
     }
+    const { email, password } = parsed.data;
 
     const admin = await prisma.admin.findUnique({ where: { email } });
     if (!admin || !(await verifyPassword(password, admin.passwordHash))) {
@@ -61,11 +63,12 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
 // returned here.
 authRouter.post('/request-recovery', recoveryLimiter, async (req, res, next) => {
   try {
-    const { email } = req.body as { email?: string };
-    if (!email) {
-      res.status(400).json({ error: 'email is required' });
+    const parsed = requestRecoverySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation failed', details: parsed.error.flatten().fieldErrors });
       return;
     }
+    const { email } = parsed.data;
 
     const admin = await prisma.admin.findUnique({ where: { email } });
     if (admin) {
@@ -80,11 +83,12 @@ authRouter.post('/request-recovery', recoveryLimiter, async (req, res, next) => 
 
 authRouter.post('/refresh', async (req, res, next) => {
   try {
-    const { refreshToken } = req.body as { refreshToken?: string };
-    if (!refreshToken) {
-      res.status(400).json({ error: 'refreshToken is required' });
+    const parsed = refreshTokenBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation failed', details: parsed.error.flatten().fieldErrors });
       return;
     }
+    const { refreshToken } = parsed.data;
 
     let adminId: string;
     try {
@@ -117,11 +121,12 @@ authRouter.post('/refresh', async (req, res, next) => {
 
 authRouter.post('/logout', async (req, res, next) => {
   try {
-    const { refreshToken } = req.body as { refreshToken?: string };
-    if (!refreshToken) {
-      res.status(400).json({ error: 'refreshToken is required' });
+    const parsed = refreshTokenBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation failed', details: parsed.error.flatten().fieldErrors });
       return;
     }
+    const { refreshToken } = parsed.data;
 
     await prisma.refreshToken.deleteMany({ where: { tokenHash: hashToken(refreshToken) } });
     res.status(204).send();

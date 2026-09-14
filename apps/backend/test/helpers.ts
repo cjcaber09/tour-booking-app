@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
 import type { AdminRole, Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma';
 import { hashPassword } from '../src/lib/password';
@@ -50,4 +51,23 @@ export async function createTestAdmin(
 
 export async function deleteTestAdmin(id: string): Promise<void> {
   await prisma.admin.delete({ where: { id } });
+}
+
+// Was hand-copied (BUCKET + a supabase client + this exact extractStoragePath body)
+// into every test file that uploads to Supabase Storage — centralized here.
+export const BUCKET = 'andy_booking';
+
+export const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
+
+/**
+ * Extracts the storage object path from a Supabase signed URL, so it can be passed
+ * to `supabase.storage.from(BUCKET).remove([...])` in test cleanup.
+ */
+export function extractStoragePath(signedUrl: string): string {
+  const marker = `/object/sign/${BUCKET}/`;
+  const idx = signedUrl.indexOf(marker);
+  if (idx === -1) {
+    throw new Error(`unexpected signed url format: ${signedUrl}`);
+  }
+  return decodeURIComponent(signedUrl.slice(idx + marker.length).split('?')[0]);
 }

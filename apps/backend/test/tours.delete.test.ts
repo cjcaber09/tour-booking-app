@@ -1,29 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { createClient } from '@supabase/supabase-js';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpers';
+import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT, BUCKET, supabase, extractStoragePath } from './helpers';
 
 const app = createApp();
-const BUCKET = 'andy_booking';
 let adminId: string;
 let accessToken: string;
 const createdTourIds: string[] = [];
 const createdCategoryIds: string[] = [];
 const createdBookingIds: string[] = [];
 const createdCustomerIds: string[] = [];
-
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
-
-function extractStoragePath(signedUrl: string): string {
-  const marker = `/object/sign/${BUCKET}/`;
-  const idx = signedUrl.indexOf(marker);
-  if (idx === -1) {
-    throw new Error(`unexpected signed url format: ${signedUrl}`);
-  }
-  return decodeURIComponent(signedUrl.slice(idx + marker.length).split('?')[0]);
-}
 
 beforeAll(async () => {
   ({ id: adminId, accessToken } = await createTestAdmin('Tours Delete Test Admin'));
