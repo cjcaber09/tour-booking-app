@@ -3,15 +3,12 @@ import request from 'supertest';
 import { createClient } from '@supabase/supabase-js';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpers';
 
 const app = createApp();
 const BUCKET = 'andy_booking';
-const DB_HEAVY_TEST_TIMEOUT = 15000;
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
-const testEmail = `tours-upload-test-${Date.now()}@example.com`;
 let adminId: string;
 let accessToken: string;
 const uploadedPaths: string[] = [];
@@ -26,22 +23,14 @@ function extractStoragePath(signedUrl: string): string {
 }
 
 beforeAll(async () => {
-  const admin = await prisma.admin.create({
-    data: {
-      email: testEmail,
-      passwordHash: await hashPassword('correct-horse-battery-staple'),
-      name: 'Upload Test Admin',
-    },
-  });
-  adminId = admin.id;
-  accessToken = signAccessToken({ adminId });
+  ({ id: adminId, accessToken } = await createTestAdmin('Upload Test Admin'));
 });
 
 afterAll(async () => {
   if (uploadedPaths.length > 0) {
     await supabase.storage.from(BUCKET).remove(uploadedPaths);
   }
-  await prisma.admin.delete({ where: { id: adminId } });
+  await deleteTestAdmin(adminId);
   await prisma.$disconnect();
 });
 

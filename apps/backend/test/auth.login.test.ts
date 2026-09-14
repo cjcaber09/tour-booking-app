@@ -54,21 +54,13 @@ describe('POST /auth/login', () => {
   });
 
   it('rejects a suspended admin (403)', async () => {
-    const email = `login-test-suspended-${Date.now()}@example.com`;
-    const suspended = await prisma.admin.create({
-      data: {
-        email,
-        passwordHash: await hashPassword(testPassword),
-        name: 'Suspended Admin',
-        isActive: false,
-      },
-    });
+    const suspended = await createTestAdmin('Suspended Admin', { data: { isActive: false } });
     try {
-      const res = await request(app).post('/auth/login').send({ email, password: testPassword });
+      const res = await request(app).post('/auth/login').send({ email: suspended.email, password: testPassword });
       expect(res.status).toBe(403);
       expect(res.body.error).toBe('account is suspended');
     } finally {
-      await prisma.admin.delete({ where: { id: suspended.id } });
+      await deleteTestAdmin(suspended.id);
     }
   });
 });

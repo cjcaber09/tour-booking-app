@@ -2,12 +2,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken, signRefreshToken, hashToken, refreshTokenExpiryDate } from '../src/lib/tokens';
+import { signRefreshToken, hashToken, refreshTokenExpiryDate } from '../src/lib/tokens';
+import { createTestAdmin, TEST_PASSWORD, DB_HEAVY_TEST_TIMEOUT } from './helpers';
 
 const app = createApp();
-const testEmailBase = `admins-update-test-${Date.now()}`;
-const password = 'correct-horse-battery-staple';
+const password = TEST_PASSWORD;
 let adminId: string;
 let adminToken: string;
 let guideId: string;
@@ -16,28 +15,14 @@ const allIds: string[] = [];
 
 beforeAll(async () => {
   const [admin, guide] = await Promise.all([
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-admin@example.com`,
-        passwordHash: await hashPassword(password),
-        name: 'Admins Update Test Admin',
-        role: 'ADMIN',
-      },
-    }),
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-guide@example.com`,
-        passwordHash: await hashPassword(password),
-        name: 'Admins Update Test Guide',
-        role: 'GUIDE',
-      },
-    }),
+    createTestAdmin('Admins Update Test Admin', { role: 'ADMIN' }),
+    createTestAdmin('Admins Update Test Guide', { role: 'GUIDE' }),
   ]);
   adminId = admin.id;
+  adminToken = admin.accessToken;
   guideId = guide.id;
+  guideToken = guide.accessToken;
   allIds.push(adminId, guideId);
-  adminToken = signAccessToken({ adminId });
-  guideToken = signAccessToken({ adminId: guideId });
 });
 
 afterAll(async () => {
@@ -82,21 +67,14 @@ describe('PATCH /admins/:id', () => {
     async () => {
       // A fresh ADMIN target: this exercises requireAdminRole's isActive check, not just
       // the role check.
-      const target = await prisma.admin.create({
-        data: {
-          email: `${testEmailBase}-target@example.com`,
-          passwordHash: await hashPassword(password),
-          name: 'Suspend Target',
-          role: 'ADMIN',
-        },
-      });
+      const target = await createTestAdmin('Suspend Target', { role: 'ADMIN' });
       const targetId = target.id;
       const targetEmail = target.email;
       allIds.push(targetId);
 
-      // Issue a real, still-unexpired access token and refresh token for the target, the way
+      // A real, still-unexpired access token and refresh token for the target, the way
       // a real client would have one before being suspended mid-session.
-      const targetAccessToken = signAccessToken({ adminId: targetId });
+      const targetAccessToken = target.accessToken;
       const targetRefreshToken = signRefreshToken(targetId);
       await prisma.refreshToken.create({
         data: {
@@ -138,6 +116,7 @@ describe('PATCH /admins/:id', () => {
       expect(activateRes.status).toBe(200);
       expect(activateRes.body.isActive).toBe(true);
     },
+    DB_HEAVY_TEST_TIMEOUT,
   );
 
   it('changes role', async () => {

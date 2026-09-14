@@ -38,12 +38,11 @@ describe('POST /auth/refresh', () => {
   });
 
   it('rejects a valid refresh token for a suspended admin, and revokes it', async () => {
-    const email = `refresh-test-suspended-${Date.now()}@example.com`;
-    const suspended = await prisma.admin.create({
-      data: { email, passwordHash: await hashPassword(testPassword), name: 'Suspended Admin' },
-    });
+    const suspended = await createTestAdmin('Suspended Admin');
     try {
-      const loginRes = await request(app).post('/auth/login').send({ email, password: testPassword });
+      const loginRes = await request(app)
+        .post('/auth/login')
+        .send({ email: suspended.email, password: testPassword });
       const refreshToken = loginRes.body.refreshToken as string;
 
       await prisma.admin.update({ where: { id: suspended.id }, data: { isActive: false } });
@@ -55,7 +54,7 @@ describe('POST /auth/refresh', () => {
       expect(remaining).toBe(0);
     } finally {
       await prisma.refreshToken.deleteMany({ where: { adminId: suspended.id } });
-      await prisma.admin.delete({ where: { id: suspended.id } });
+      await deleteTestAdmin(suspended.id);
     }
   });
 });

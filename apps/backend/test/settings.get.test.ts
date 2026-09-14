@@ -2,29 +2,18 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin, deleteTestAdmin } from './helpers';
 
 const app = createApp();
-const testEmail = `settings-get-test-${Date.now()}@example.com`;
 let adminId: string;
 let guideToken: string;
 
 beforeAll(async () => {
-  const admin = await prisma.admin.create({
-    data: {
-      email: testEmail,
-      passwordHash: await hashPassword('correct-horse-battery-staple'),
-      name: 'Settings Get Test Admin',
-      role: 'GUIDE',
-    },
-  });
-  adminId = admin.id;
-  guideToken = signAccessToken({ adminId });
+  ({ id: adminId, accessToken: guideToken } = await createTestAdmin('Settings Get Test Admin', { role: 'GUIDE' }));
 });
 
 afterAll(async () => {
-  await prisma.admin.delete({ where: { id: adminId } });
+  await deleteTestAdmin(adminId);
   await prisma.$disconnect();
 });
 

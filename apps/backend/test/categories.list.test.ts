@@ -22,7 +22,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.category.deleteMany({ where: { id: { in: createdCategoryIds } } });
-  await prisma.admin.delete({ where: { id: adminId } });
+  await deleteTestAdmin(adminId);
   await prisma.$disconnect();
 });
 

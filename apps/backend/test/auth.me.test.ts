@@ -31,7 +31,7 @@ describe('GET /auth/me', () => {
     expect(meRes.body).toEqual({
       id: expect.any(String),
       email: testEmail,
-      name: 'Test Admin',
+      name: 'Me Test Admin',
       role: 'ADMIN',
       avatarUrl: null,
       phone: null,

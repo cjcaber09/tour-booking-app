@@ -2,12 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
 import { getOrCreateSettings } from '../src/lib/settings';
+import { createTestAdmin } from './helpers';
 
 const app = createApp();
-const testEmailBase = `settings-update-test-${Date.now()}`;
 let adminId: string;
 let adminToken: string;
 let guideId: string;
@@ -16,28 +14,14 @@ let originalCurrency: string;
 
 beforeAll(async () => {
   const [admin, guide, settings] = await Promise.all([
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-admin@example.com`,
-        passwordHash: await hashPassword('correct-horse-battery-staple'),
-        name: 'Settings Update Test Admin',
-        role: 'ADMIN',
-      },
-    }),
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-guide@example.com`,
-        passwordHash: await hashPassword('correct-horse-battery-staple'),
-        name: 'Settings Update Test Guide',
-        role: 'GUIDE',
-      },
-    }),
+    createTestAdmin('Settings Update Test Admin', { role: 'ADMIN' }),
+    createTestAdmin('Settings Update Test Guide', { role: 'GUIDE' }),
     getOrCreateSettings(),
   ]);
   adminId = admin.id;
   guideId = guide.id;
-  adminToken = signAccessToken({ adminId });
-  guideToken = signAccessToken({ adminId: guideId });
+  adminToken = admin.accessToken;
+  guideToken = guide.accessToken;
   originalCurrency = settings.currency;
 });
 

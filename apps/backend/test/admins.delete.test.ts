@@ -2,12 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken, signRefreshToken, hashToken, refreshTokenExpiryDate } from '../src/lib/tokens';
+import { signRefreshToken, hashToken, refreshTokenExpiryDate } from '../src/lib/tokens';
+import { createTestAdmin } from './helpers';
 
 const app = createApp();
-const testEmailBase = `admins-delete-test-${Date.now()}`;
-const password = 'correct-horse-battery-staple';
 let adminId: string;
 let adminToken: string;
 let guideId: string;
@@ -16,28 +14,14 @@ const allIds: string[] = [];
 
 beforeAll(async () => {
   const [admin, guide] = await Promise.all([
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-admin@example.com`,
-        passwordHash: await hashPassword(password),
-        name: 'Admins Delete Test Admin',
-        role: 'ADMIN',
-      },
-    }),
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-guide@example.com`,
-        passwordHash: await hashPassword(password),
-        name: 'Admins Delete Test Guide',
-        role: 'GUIDE',
-      },
-    }),
+    createTestAdmin('Admins Delete Test Admin', { role: 'ADMIN' }),
+    createTestAdmin('Admins Delete Test Guide', { role: 'GUIDE' }),
   ]);
   adminId = admin.id;
+  adminToken = admin.accessToken;
   guideId = guide.id;
+  guideToken = guide.accessToken;
   allIds.push(adminId, guideId);
-  adminToken = signAccessToken({ adminId });
-  guideToken = signAccessToken({ adminId: guideId });
 });
 
 afterAll(async () => {
@@ -70,14 +54,7 @@ describe('DELETE /admins/:id', () => {
   });
 
   it('deletes the admin and cleans up their refresh tokens', async () => {
-    const target = await prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-target@example.com`,
-        passwordHash: await hashPassword(password),
-        name: 'Delete Target',
-        role: 'GUIDE',
-      },
-    });
+    const target = await createTestAdmin('Delete Target', { role: 'GUIDE' });
     const refreshToken = signRefreshToken(target.id);
     await prisma.refreshToken.create({
       data: { adminId: target.id, tokenHash: hashToken(refreshToken), expiresAt: refreshTokenExpiryDate() },

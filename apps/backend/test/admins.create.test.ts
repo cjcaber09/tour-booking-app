@@ -2,12 +2,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { hashPassword } from '../src/lib/password';
-import { signAccessToken } from '../src/lib/tokens';
+import { createTestAdmin } from './helpers';
 
 const app = createApp();
 const testEmailBase = `admins-create-test-${Date.now()}`;
 let adminId: string;
+let adminEmail: string;
 let adminToken: string;
 let guideId: string;
 let guideToken: string;
@@ -15,27 +15,14 @@ const createdAdminIds: string[] = [];
 
 beforeAll(async () => {
   const [admin, guide] = await Promise.all([
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-admin@example.com`,
-        passwordHash: await hashPassword('correct-horse-battery-staple'),
-        name: 'Admins Create Test Admin',
-        role: 'ADMIN',
-      },
-    }),
-    prisma.admin.create({
-      data: {
-        email: `${testEmailBase}-guide@example.com`,
-        passwordHash: await hashPassword('correct-horse-battery-staple'),
-        name: 'Admins Create Test Guide',
-        role: 'GUIDE',
-      },
-    }),
+    createTestAdmin('Admins Create Test Admin', { role: 'ADMIN' }),
+    createTestAdmin('Admins Create Test Guide', { role: 'GUIDE' }),
   ]);
   adminId = admin.id;
+  adminEmail = admin.email;
   guideId = guide.id;
-  adminToken = signAccessToken({ adminId });
-  guideToken = signAccessToken({ adminId: guideId });
+  adminToken = admin.accessToken;
+  guideToken = guide.accessToken;
 });
 
 afterAll(async () => {
@@ -73,7 +60,7 @@ describe('POST /admins', () => {
     const res = await request(app)
       .post('/admins')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: 'Duplicate', email: `${testEmailBase}-admin@example.com`, role: 'GUIDE' });
+      .send({ name: 'Duplicate', email: adminEmail, role: 'GUIDE' });
     expect(res.status).toBe(409);
   });
 
