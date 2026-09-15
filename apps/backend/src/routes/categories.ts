@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
+import { requireAdminRole } from '../middleware/requireAdminRole';
 import { slugify } from '../lib/slug';
 import { listCategoriesQuerySchema, createCategorySchema, updateCategorySchema } from './categories.schema';
 
@@ -46,7 +47,7 @@ categoriesRouter.get('/', requireAuth, async (req, res, next) => {
   }
 });
 
-categoriesRouter.post('/', requireAuth, async (req, res, next) => {
+categoriesRouter.post('/', requireAuth, requireAdminRole('ADMIN', 'STAFF'), async (req, res, next) => {
   try {
     const parsed = createCategorySchema.safeParse(req.body);
     if (!parsed.success) {
@@ -82,7 +83,7 @@ categoriesRouter.post('/', requireAuth, async (req, res, next) => {
 // the public booking site via GET /public/tours' nested category, so silently changing it on
 // rename could break an external consumer that references it (same policy tours.ts already
 // applies to its own slug). Category.name has no unique constraint, so there's no 409 path here.
-categoriesRouter.patch('/:id', requireAuth, async (req, res, next) => {
+categoriesRouter.patch('/:id', requireAuth, requireAdminRole('ADMIN', 'STAFF'), async (req, res, next) => {
   try {
     const parsed = updateCategorySchema.safeParse(req.body);
     if (!parsed.success) {
@@ -109,7 +110,7 @@ categoriesRouter.patch('/:id', requireAuth, async (req, res, next) => {
 // No P2003 branch: the _TourCategories join table has ON DELETE CASCADE on both sides, so
 // deleting a category in use by tours just detaches it from them rather than throwing an FK
 // error.
-categoriesRouter.delete('/:id', requireAuth, async (req, res, next) => {
+categoriesRouter.delete('/:id', requireAuth, requireAdminRole('ADMIN', 'STAFF'), async (req, res, next) => {
   try {
     const category = await prisma.category.delete({ where: { id: req.params.id } });
     res.status(200).json({ id: category.id });

@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
+import { requireAdminRole } from '../middleware/requireAdminRole';
 import { getAuditEntries } from '../middleware/auditLog';
 import { prisma } from '../lib/prisma';
 
 export const auditRouter = Router();
 
-auditRouter.get('/', requireAuth, async (_req, res, next) => {
+auditRouter.get('/', requireAuth, requireAdminRole('ADMIN'), async (_req, res, next) => {
   if (process.env.ENABLE_DEV_AUDIT_LOG !== 'true') {
     res.status(404).json({ error: 'not found' });
     return;

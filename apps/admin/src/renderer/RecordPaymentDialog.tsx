@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Banknote, FileText, Upload } from 'lucide-react';
+import { Banknote, FileText, Upload, LoaderCircle } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { cn } from './lib/utils';
 import { useAppSettings } from './states/appSettingsStore';
+import { useEscapeToClose } from './lib/useEscapeToClose';
+import { useBackdropDismiss } from './lib/useBackdropDismiss';
 
 type PaymentMethod = 'CASH' | 'INVOICE_REFERENCE' | 'FILE';
 
@@ -18,9 +20,10 @@ interface RecordPaymentDialogProps {
     file?: File;
   }) => void;
   onCancel: () => void;
+  submitting: boolean;
 }
 
-export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaymentDialogProps) {
+export function RecordPaymentDialog({ booking, onConfirm, onCancel, submitting }: RecordPaymentDialogProps) {
   const { formatCurrency } = useAppSettings();
   const remaining = booking.totalPrice - booking.amountPaid;
   const [amountReceived, setAmountReceived] = useState('');
@@ -68,9 +71,13 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
     });
   }
 
+  useEscapeToClose(onCancel, submitting);
+  const backdropRef = useBackdropDismiss(onCancel, submitting);
+
   return (
-    <div className="dialog-backdrop" onClick={onCancel}>
-      <div className="dialog-card w-[min(440px,calc(100vw-3rem))]" onClick={(e) => e.stopPropagation()}>
+    <div className="dialog-backdrop">
+      <div ref={backdropRef} className="dialog-backdrop-dismiss" aria-hidden="true" />
+      <div className="dialog-card w-[min(440px,calc(100vw-3rem))]">
         <h3 className="dialog-title">Record payment</h3>
         <p className="dialog-message">Recording a payment for {booking.reference}.</p>
 
@@ -93,6 +100,7 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
             step="0.01"
             value={amountReceived}
             onChange={(e) => setAmountReceived(e.target.value)}
+            disabled={submitting}
             autoFocus
           />
         </label>
@@ -101,6 +109,7 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
           <Button
             className={cn('flex-1 flex-col gap-1 py-2 text-xs', method === 'CASH' && 'neu-inset')}
             onClick={() => setMethod('CASH')}
+            disabled={submitting}
           >
             <Banknote size={16} />
             Cash
@@ -108,6 +117,7 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
           <Button
             className={cn('flex-1 flex-col gap-1 py-2 text-xs', method === 'INVOICE_REFERENCE' && 'neu-inset')}
             onClick={() => setMethod('INVOICE_REFERENCE')}
+            disabled={submitting}
           >
             <FileText size={16} />
             Invoice
@@ -115,6 +125,7 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
           <Button
             className={cn('flex-1 flex-col gap-1 py-2 text-xs', method === 'FILE' && 'neu-inset')}
             onClick={() => setMethod('FILE')}
+            disabled={submitting}
           >
             <Upload size={16} />
             Upload file
@@ -130,6 +141,7 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
               value={invoiceReference}
               onChange={(e) => setInvoiceReference(e.target.value)}
               placeholder="e.g. INV-0042"
+              disabled={submitting}
               autoFocus
             />
           </label>
@@ -143,13 +155,18 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
               onChange={(e) => handleFileChange(e.target.files?.[0])}
+              disabled={submitting}
             />
             {file && <span className="text-xs text-muted">{file.name}</span>}
             {fileError && <span className="text-xs text-error">{fileError}</span>}
           </label>
         )}
 
-        <Button className="mb-6 w-full text-[0.8rem]" onClick={() => setAmountReceived(remaining.toFixed(2))}>
+        <Button
+          className="mb-6 w-full text-[0.8rem]"
+          onClick={() => setAmountReceived(remaining.toFixed(2))}
+          disabled={submitting}
+        >
           Full remaining balance
         </Button>
         {!isAmountValid && (
@@ -157,8 +174,11 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel }: RecordPaym
         )}
 
         <div className="dialog-actions">
-          <Button onClick={onCancel}>Cancel</Button>
-          <Button disabled={!isValid} onClick={handleConfirmClick}>
+          <Button onClick={onCancel} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button disabled={!isValid || submitting} onClick={handleConfirmClick}>
+            {submitting && <LoaderCircle className="animate-[spin_0.8s_linear_infinite]" size={14} />}
             Record payment
           </Button>
         </div>

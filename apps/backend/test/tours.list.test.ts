@@ -7,12 +7,21 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpe
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
 const createdTourIds: string[] = [];
 
 const PAGE_SEED_COUNT = 15;
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Tours List Test Admin'));
+  const [admin, guide] = await Promise.all([
+    createTestAdmin('Tours List Test Admin'),
+    createTestAdmin('Tours List Test Guide', { role: 'GUIDE' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
 
   const base = Date.now();
   const seeded = await Promise.all(
@@ -34,10 +43,16 @@ beforeAll(async () => {
 afterAll(async () => {
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
   await prisma.$disconnect();
 });
 
 describe('GET /tours', () => {
+  it('remains readable for a GUIDE role (not restricted, unlike the write routes)', async () => {
+    const res = await request(app).get('/tours').set('Authorization', `Bearer ${guideToken}`);
+    expect(res.status).toBe(200);
+  });
+
   it('rejects a request with no authorization header', async () => {
     const res = await request(app).get('/tours');
     expect(res.status).toBe(401);

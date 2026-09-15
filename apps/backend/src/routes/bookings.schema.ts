@@ -17,6 +17,7 @@ export const createBookingSchemaAdmin = bookingCoreSchema
     customerId: z.string().uuid().optional(),
     customer: customerInputSchema.optional(),
     notes: z.string().trim().max(2000).optional(),
+    confirmed: z.boolean().default(false),
   })
   .refine((data) => (data.customerId != null) !== (data.customer != null), {
     message: 'provide exactly one of customerId or customer',
@@ -40,6 +41,7 @@ export const updateBookingSchema = z
     startDate: z.string().datetime().optional(),
     amountPaid: z.number().nonnegative().optional(),
     notes: z.string().trim().max(2000).optional(),
+    guideId: z.string().uuid().nullable().optional(),
   })
   .refine((data) => !(data.customerId != null && data.customer != null), {
     message: 'provide at most one of customerId or customer',

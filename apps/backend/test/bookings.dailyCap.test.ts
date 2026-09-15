@@ -25,6 +25,7 @@ const dayAdminCreate = new Date(Date.UTC(2093, 0, 2));
 const dayConfirmQueue = new Date(Date.UTC(2093, 0, 3));
 const dayMovedInto = new Date(Date.UTC(2093, 0, 4));
 const dayMovedFrom = new Date(Date.UTC(2093, 0, 5));
+const dayAdminCreatePending = new Date(Date.UTC(2093, 0, 6));
 
 async function createPendingBooking(startDate: Date) {
   const customer = await prisma.customer.create({
@@ -133,6 +134,7 @@ describe('Daily booking cap (maxBookingsPerDay)', () => {
           participants: 1,
           startDate: dayAdminCreate.toISOString(),
           customer: { email: `dailycap-admin1-${Date.now()}@example.com`, name: 'Admin One' },
+          confirmed: true,
         });
       expect(first.status).toBe(201);
       createdBookingIds.push(first.body.id);
@@ -146,8 +148,43 @@ describe('Daily booking cap (maxBookingsPerDay)', () => {
           participants: 1,
           startDate: dayAdminCreate.toISOString(),
           customer: { email: `dailycap-admin2-${Date.now()}@example.com`, name: 'Admin Two' },
+          confirmed: true,
         });
       expect(second.status).toBe(409);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'two admin-created bookings on the same day both succeed when neither passes confirmed (PENDING does not consume the cap)',
+    async () => {
+      const first = await request(app)
+        .post('/bookings')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          tourId,
+          participants: 1,
+          startDate: dayAdminCreatePending.toISOString(),
+          customer: { email: `dailycap-pending1-${Date.now()}@example.com`, name: 'Pending One' },
+        });
+      expect(first.status).toBe(201);
+      expect(first.body.status).toBe('PENDING');
+      createdBookingIds.push(first.body.id);
+      createdCustomerIds.push(first.body.customer.id);
+
+      const second = await request(app)
+        .post('/bookings')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          tourId,
+          participants: 1,
+          startDate: dayAdminCreatePending.toISOString(),
+          customer: { email: `dailycap-pending2-${Date.now()}@example.com`, name: 'Pending Two' },
+        });
+      expect(second.status).toBe(201);
+      expect(second.body.status).toBe('PENDING');
+      createdBookingIds.push(second.body.id);
+      createdCustomerIds.push(second.body.customer.id);
     },
     DB_HEAVY_TEST_TIMEOUT,
   );
@@ -193,6 +230,7 @@ describe('Daily booking cap (maxBookingsPerDay)', () => {
           participants: 1,
           startDate: dayMovedInto.toISOString(),
           customer: { email: `dailycap-occupy-${Date.now()}@example.com`, name: 'Occupying' },
+          confirmed: true,
         });
       expect(occupying.status).toBe(201);
       createdBookingIds.push(occupying.body.id);
@@ -206,6 +244,7 @@ describe('Daily booking cap (maxBookingsPerDay)', () => {
           participants: 1,
           startDate: dayMovedFrom.toISOString(),
           customer: { email: `dailycap-mover-${Date.now()}@example.com`, name: 'Mover' },
+          confirmed: true,
         });
       expect(mover.status).toBe(201);
       createdBookingIds.push(mover.body.id);

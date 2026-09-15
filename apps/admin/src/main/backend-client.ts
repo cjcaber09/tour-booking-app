@@ -40,6 +40,7 @@ import type {
   UpdateAdminPayload,
   ListAdminsResult,
   AdminListFilters,
+  ListAssignableGuidesResult,
 } from '../preload';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
@@ -590,6 +591,13 @@ export async function backendListAdmins(
   if (filters.q) params.set('q', filters.q);
   if (filters.isActive !== undefined) params.set('isActive', String(filters.isActive));
   const res = await fetch(`${BACKEND_URL}/admins?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function backendListAssignableGuides(accessToken: string): Promise<ListAssignableGuidesResult> {
+  const res = await fetch(`${BACKEND_URL}/admins/assignable-guides`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   return parseJsonOrThrow(res);

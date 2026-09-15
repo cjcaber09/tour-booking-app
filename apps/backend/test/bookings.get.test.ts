@@ -7,6 +7,10 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpe
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
+let otherGuideId: string;
+let otherGuideToken: string;
 let tourId: string;
 let customerId: string;
 let bookingId: string;
@@ -15,7 +19,17 @@ const createdCustomerIds: string[] = [];
 const createdBookingIds: string[] = [];
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Bookings Get Test Admin'));
+  const [admin, guide, otherGuide] = await Promise.all([
+    createTestAdmin('Bookings Get Test Admin'),
+    createTestAdmin('Bookings Get Test Guide', { role: 'GUIDE' }),
+    createTestAdmin('Bookings Get Test Other Guide', { role: 'GUIDE' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
+  otherGuideId = otherGuide.id;
+  otherGuideToken = otherGuide.accessToken;
 
   const base = Date.now();
   const tour = await prisma.tour.create({
@@ -54,6 +68,8 @@ afterAll(async () => {
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
+  await deleteTestAdmin(otherGuideId);
   await prisma.$disconnect();
 });
 
@@ -106,6 +122,43 @@ describe('GET /bookings/:id', () => {
       const res = await request(app).get(`/bookings/${booking.id}`).set('Authorization', `Bearer ${accessToken}`);
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('COMPLETED');
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'rejects a GUIDE viewing a booking unassigned to anyone (403)',
+    async () => {
+      const res = await request(app).get(`/bookings/${bookingId}`).set('Authorization', `Bearer ${guideToken}`);
+      expect(res.status).toBe(403);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'rejects a GUIDE viewing a booking assigned to a different guide (403), allows the assigned guide (200)',
+    async () => {
+      const booking = await prisma.booking.create({
+        data: {
+          reference: `BK-GETTEST-ASSIGNED${Date.now()}`,
+          tourId,
+          customerId,
+          guideId,
+          participants: 1,
+          startDate: new Date(),
+          totalPrice: 100,
+        },
+      });
+      createdBookingIds.push(booking.id);
+
+      const forbidden = await request(app)
+        .get(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${otherGuideToken}`);
+      expect(forbidden.status).toBe(403);
+
+      const allowed = await request(app).get(`/bookings/${booking.id}`).set('Authorization', `Bearer ${guideToken}`);
+      expect(allowed.status).toBe(200);
+      expect(allowed.body.guide.id).toBe(guideId);
     },
     DB_HEAVY_TEST_TIMEOUT,
   );

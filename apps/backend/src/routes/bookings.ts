@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { Prisma } from '@prisma/client';
+import { Prisma, AdminRole } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
+import { requireAdminRole } from '../middleware/requireAdminRole';
 import {
   createBookingSchemaAdmin,
   listBookingsQuerySchema,
@@ -11,27 +12,29 @@ import {
 } from './bookings.schema';
 import {
   createBooking,
+  updateBooking,
   bookingInclude,
   bookingListSelect,
   finalizeBookingList,
   getBookingCalendarWindow,
   getBookingsStatsWindows,
   BookingServiceError,
-  resolveCustomer,
-  computeTotalPrice,
   derivePaymentStatus,
   serializeBooking,
   autoCompleteIfDue,
   todayIsPastOrEqualStartDate,
   assertDailyBookingCapNotExceeded,
-  dateOnly,
+  assertBookingAccessAllowed,
+  isBookingLocked,
 } from '../lib/bookings';
 import { upload } from '../lib/upload';
 import { uploadPaymentProof } from '../lib/supabaseStorage';
 
 export const bookingsRouter = Router();
 
-bookingsRouter.get('/', requireAuth, async (req, res, next) => {
+const ALL_ROLES: AdminRole[] = ['ADMIN', 'LEAD_GUIDE', 'GUIDE', 'STAFF'];
+
+bookingsRouter.get('/', requireAuth, requireAdminRole(...ALL_ROLES), async (req, res, next) => {
   try {
     const parsed = listBookingsQuerySchema.safeParse(req.query);
     if (!parsed.success) {
@@ -54,11 +57,16 @@ bookingsRouter.get('/', requireAuth, async (req, res, next) => {
       : {};
     // Respects every other filter but not status, so every status tab's count
     // reflects "how many match the rest of this filter" regardless of which tab is
-    // currently selected.
+    // currently selected. A GUIDE's scope is forced in here too (not just on `where`
+    // below), since `where` is derived from `facetWhere` and the four status-tab
+    // counts query `facetWhere` directly — scoping only `where` would narrow a
+    // guide's list correctly while leaving every status-tab count showing
+    // company-wide numbers.
     const facetWhere = {
       ...(paymentStatus ? { paymentStatus } : {}),
       ...(tourId ? { tourId } : {}),
       ...(customerId ? { customerId } : {}),
+      ...(req.adminRole === 'GUIDE' ? { guideId: req.adminId } : {}),
       ...searchClause,
     };
     const where = { ...facetWhere, ...(status ? { status } : {}) };
@@ -149,7 +157,7 @@ bookingsRouter.get('/stats', requireAuth, async (req, res, next) => {
   }
 });
 
-bookingsRouter.get('/:id', requireAuth, async (req, res, next) => {
+bookingsRouter.get('/:id', requireAuth, requireAdminRole(...ALL_ROLES), async (req, res, next) => {
   try {
     const booking = await prisma.booking.findUnique({
       where: { id: req.params.id },
@@ -159,13 +167,18 @@ bookingsRouter.get('/:id', requireAuth, async (req, res, next) => {
       res.status(404).json({ error: 'booking not found' });
       return;
     }
+    await assertBookingAccessAllowed(req.adminRole!, req.adminId!, booking);
     res.json(serializeBooking(await autoCompleteIfDue(booking)));
   } catch (err) {
+    if (err instanceof BookingServiceError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
     next(err);
   }
 });
 
-bookingsRouter.post('/', requireAuth, async (req, res, next) => {
+bookingsRouter.post('/', requireAuth, requireAdminRole('ADMIN', 'LEAD_GUIDE', 'STAFF'), async (req, res, next) => {
   try {
     const parsed = createBookingSchemaAdmin.safeParse(req.body);
     if (!parsed.success) {
@@ -173,7 +186,7 @@ bookingsRouter.post('/', requireAuth, async (req, res, next) => {
       return;
     }
 
-    const { tourId, participants, startDate, customerId, customer, notes } = parsed.data;
+    const { tourId, participants, startDate, customerId, customer, notes, confirmed } = parsed.data;
     const booking = await createBooking({
       tourId,
       participants,
@@ -181,7 +194,7 @@ bookingsRouter.post('/', requireAuth, async (req, res, next) => {
       customerInput: { customerId, customer },
       notes,
       requireActiveTour: false,
-      status: 'CONFIRMED',
+      status: confirmed ? 'CONFIRMED' : 'PENDING',
     });
 
     res.status(201).json(serializeBooking(booking));
@@ -194,7 +207,7 @@ bookingsRouter.post('/', requireAuth, async (req, res, next) => {
   }
 });
 
-bookingsRouter.patch('/:id', requireAuth, async (req, res, next) => {
+bookingsRouter.patch('/:id', requireAuth, requireAdminRole('ADMIN', 'LEAD_GUIDE', 'STAFF'), async (req, res, next) => {
   try {
     const parsed = updateBookingSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -212,71 +225,7 @@ bookingsRouter.patch('/:id', requireAuth, async (req, res, next) => {
       return;
     }
 
-    const { tourId, customerId, customer, participants, startDate, amountPaid, notes } = parsed.data;
-
-    // amountPaid-only bodies (Record Payment) are always allowed; anything that touches
-    // the booking's actual details is blocked once the tour is due, ongoing, or completed.
-    const isFullEdit = [tourId, customerId, customer, participants, startDate, notes].some((v) => v !== undefined);
-    const isLocked =
-      existing.status === 'ONGOING' ||
-      existing.status === 'COMPLETED' ||
-      (existing.status === 'CONFIRMED' && todayIsPastOrEqualStartDate(existing.startDate));
-    if (isFullEdit && isLocked) {
-      res.status(409).json({ error: 'cannot edit a booking once it is due, ongoing, or completed' });
-      return;
-    }
-
-    // The tour/participants branch and the customer branch touch independent tables and
-    // don't depend on each other's result, so they're resolved concurrently rather than
-    // as two sequential round trips.
-    const totalPricePromise =
-      tourId !== undefined || participants !== undefined || startDate !== undefined
-        ? computeTotalPrice(
-            tourId ?? existing.tourId,
-            participants ?? existing.participants,
-            new Date(startDate ?? existing.startDate),
-            false,
-          ).then((r) => r.totalPrice)
-        : Promise.resolve(existing.totalPrice);
-
-    const resolvedCustomerIdPromise =
-      customerId !== undefined || customer !== undefined
-        ? resolveCustomer({ customerId, customer }).then((c) => c.id)
-        : Promise.resolve(existing.customerId);
-
-    const [totalPrice, resolvedCustomerId] = await Promise.all([totalPricePromise, resolvedCustomerIdPromise]);
-
-    // Only a CONFIRMED booking's startDate guards a day's slot — a PENDING booking
-    // never does (see assertDailyBookingCapNotExceeded), and only re-check when the
-    // date is actually changing: this booking's own row still counts toward its
-    // current day until the update commits, so an unconditional check would falsely
-    // block a no-op resubmission of the same startDate on an already-full day. Checked
-    // after computeTotalPrice above so an invalid tourId/offered-date still surfaces
-    // its own error instead of being masked by an unrelated full-day rejection.
-    if (existing.status === 'CONFIRMED' && startDate !== undefined) {
-      const newDay = dateOnly(new Date(startDate));
-      if (newDay.getTime() !== dateOnly(existing.startDate).getTime()) {
-        await assertDailyBookingCapNotExceeded(new Date(startDate));
-      }
-    }
-
-    const effectiveAmountPaid = amountPaid !== undefined ? amountPaid : existing.amountPaid;
-
-    const booking = await prisma.booking.update({
-      where: { id: req.params.id },
-      data: {
-        ...(tourId !== undefined ? { tourId } : {}),
-        customerId: resolvedCustomerId,
-        ...(participants !== undefined ? { participants } : {}),
-        ...(startDate !== undefined ? { startDate: new Date(startDate) } : {}),
-        ...(amountPaid !== undefined ? { amountPaid } : {}),
-        ...(notes !== undefined ? { notes } : {}),
-        totalPrice,
-        paymentStatus: derivePaymentStatus(effectiveAmountPaid, totalPrice),
-      },
-      include: bookingInclude,
-    });
-
+    const booking = await updateBooking(existing, parsed.data);
     res.json(serializeBooking(booking));
   } catch (err) {
     if (err instanceof BookingServiceError) {
@@ -291,7 +240,7 @@ bookingsRouter.patch('/:id', requireAuth, async (req, res, next) => {
   }
 });
 
-bookingsRouter.post('/:id/confirm', requireAuth, async (req, res, next) => {
+bookingsRouter.post('/:id/confirm', requireAuth, requireAdminRole('ADMIN', 'LEAD_GUIDE', 'STAFF'), async (req, res, next) => {
   try {
     const existing = await prisma.booking.findUnique({ where: { id: req.params.id } });
     if (!existing) {
@@ -320,19 +269,24 @@ bookingsRouter.post('/:id/confirm', requireAuth, async (req, res, next) => {
   }
 });
 
-bookingsRouter.post('/:id/ongoing', requireAuth, async (req, res, next) => {
+bookingsRouter.post('/:id/ongoing', requireAuth, requireAdminRole(...ALL_ROLES), async (req, res, next) => {
   try {
     const existing = await prisma.booking.findUnique({ where: { id: req.params.id } });
     if (!existing) {
       res.status(404).json({ error: 'booking not found' });
       return;
     }
+    await assertBookingAccessAllowed(req.adminRole!, req.adminId!, existing);
     if (existing.status !== 'CONFIRMED') {
       res.status(409).json({ error: 'booking is not confirmed' });
       return;
     }
     if (!todayIsPastOrEqualStartDate(existing.startDate)) {
       res.status(409).json({ error: 'booking has not reached its start date' });
+      return;
+    }
+    if (!existing.guideId) {
+      res.status(409).json({ error: 'assign a guide before marking this booking ongoing' });
       return;
     }
 
@@ -343,6 +297,10 @@ bookingsRouter.post('/:id/ongoing', requireAuth, async (req, res, next) => {
     });
     res.json(serializeBooking(booking));
   } catch (err) {
+    if (err instanceof BookingServiceError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
     next(err);
   }
 });
@@ -352,6 +310,7 @@ const ALLOWED_PAYMENT_PROOF_MIMETYPES = ['image/jpeg', 'image/png', 'image/webp'
 bookingsRouter.post(
   '/:id/payments/upload-proof',
   requireAuth,
+  requireAdminRole('ADMIN', 'LEAD_GUIDE', 'STAFF'),
   upload.single('proof'),
   async (req, res, next) => {
     try {
@@ -371,7 +330,7 @@ bookingsRouter.post(
   },
 );
 
-bookingsRouter.post('/:id/payments', requireAuth, async (req, res, next) => {
+bookingsRouter.post('/:id/payments', requireAuth, requireAdminRole('ADMIN', 'LEAD_GUIDE', 'STAFF'), async (req, res, next) => {
   try {
     const parsed = recordPaymentSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -418,7 +377,7 @@ bookingsRouter.post('/:id/payments', requireAuth, async (req, res, next) => {
   }
 });
 
-bookingsRouter.post('/:id/cancel', requireAuth, async (req, res, next) => {
+bookingsRouter.post('/:id/cancel', requireAuth, requireAdminRole(...ALL_ROLES), async (req, res, next) => {
   try {
     const parsed = cancelBookingSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -431,15 +390,12 @@ bookingsRouter.post('/:id/cancel', requireAuth, async (req, res, next) => {
       res.status(404).json({ error: 'booking not found' });
       return;
     }
+    await assertBookingAccessAllowed(req.adminRole!, req.adminId!, existing);
     if (existing.status === 'CANCELLED') {
       res.status(409).json({ error: 'booking is already cancelled' });
       return;
     }
-    const isLocked =
-      existing.status === 'ONGOING' ||
-      existing.status === 'COMPLETED' ||
-      (existing.status === 'CONFIRMED' && todayIsPastOrEqualStartDate(existing.startDate));
-    if (isLocked && existing.paymentStatus === 'PAID') {
+    if (isBookingLocked(existing) && existing.paymentStatus === 'PAID') {
       res.status(409).json({ error: 'booking cannot be cancelled once it is due, ongoing, or completed' });
       return;
     }
@@ -460,6 +416,10 @@ bookingsRouter.post('/:id/cancel', requireAuth, async (req, res, next) => {
     });
     res.json(serializeBooking(booking));
   } catch (err) {
+    if (err instanceof BookingServiceError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
     next(err);
   }
 });

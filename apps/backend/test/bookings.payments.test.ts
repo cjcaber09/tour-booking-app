@@ -7,6 +7,8 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT, BUCKET, supaba
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
 let tourId: string;
 let customerId: string;
 const createdTourIds: string[] = [];
@@ -32,7 +34,14 @@ async function createBooking(overrides: Record<string, unknown> = {}) {
 }
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Bookings Payments Test Admin'));
+  const [admin, guide] = await Promise.all([
+    createTestAdmin('Bookings Payments Test Admin'),
+    createTestAdmin('Bookings Payments Test Guide', { role: 'GUIDE' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
 
   const base = Date.now();
   const tour = await prisma.tour.create({
@@ -59,6 +68,7 @@ afterAll(async () => {
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
   if (uploadedPaths.length > 0) {
     await supabase.storage.from(BUCKET).remove(uploadedPaths);
   }
@@ -78,6 +88,19 @@ describe('POST /bookings/:id/payments', () => {
       .send({ method: 'CASH', amount: 10 });
     expect(res.status).toBe(404);
   });
+
+  it(
+    'rejects a GUIDE role (403), even on a booking assigned to them',
+    async () => {
+      const booking = await createBooking({ guideId });
+      const res = await request(app)
+        .post(`/bookings/${booking.id}/payments`)
+        .set('Authorization', `Bearer ${guideToken}`)
+        .send({ method: 'CASH', amount: 10 });
+      expect(res.status).toBe(403);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
 
   it(
     'records a CASH payment and recomputes amountPaid/paymentStatus',
@@ -172,6 +195,19 @@ describe('POST /bookings/:id/payments', () => {
 });
 
 describe('POST /bookings/:id/payments/upload-proof', () => {
+  it(
+    'rejects a GUIDE role (403), even on a booking assigned to them',
+    async () => {
+      const booking = await createBooking({ guideId });
+      const res = await request(app)
+        .post(`/bookings/${booking.id}/payments/upload-proof`)
+        .set('Authorization', `Bearer ${guideToken}`)
+        .attach('proof', Buffer.from('fake-pdf-bytes'), { filename: 'receipt.pdf', contentType: 'application/pdf' });
+      expect(res.status).toBe(403);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
   it(
     'uploads a valid proof file and returns a signed url',
     async () => {

@@ -1,4 +1,5 @@
 import { ChangeEvent, DragEvent, FormEvent, useMemo, useRef, useState } from 'react';
+import { LoaderCircle } from 'lucide-react';
 import { useAuth } from '../../states/authStore';
 import { useAppSettings } from '../../states/appSettingsStore';
 import { toast } from '../../toast';
@@ -362,6 +363,7 @@ function GeneralTabForm({ settings }: { settings: AppSettingsDto }) {
 
       <div className="form-actions">
         <Button type="submit" disabled={submitting}>
+          {submitting && <LoaderCircle className="animate-[spin_0.8s_linear_infinite]" size={14} />}
           {submitting ? 'Saving…' : 'Save Changes'}
         </Button>
       </div>

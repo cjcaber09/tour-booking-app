@@ -20,6 +20,13 @@ interface AuthState {
 let initialized = false;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
+function clearRefreshTimer() {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+}
+
 export const useAuthStore = create<AuthState>()((set, get) => {
   // All session-changing entry points reduce to the same shape: session set (or
   // null) + status derived from it. Only fires the refresh-timer arm/disarm on an
@@ -45,13 +52,6 @@ export const useAuthStore = create<AuthState>()((set, get) => {
       // failure) — a missed/expired tick safely degrades to a logout transition.
       window.authAPI.getSession().then(applySession);
     }, REFRESH_INTERVAL_MS);
-  }
-
-  function clearRefreshTimer() {
-    if (refreshTimer) {
-      clearInterval(refreshTimer);
-      refreshTimer = null;
-    }
   }
 
   return {

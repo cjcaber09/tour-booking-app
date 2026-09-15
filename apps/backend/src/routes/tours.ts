@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
+import { requireAdminRole } from '../middleware/requireAdminRole';
 import { createTourSchema, updateTourSchema, listToursQuerySchema } from './tours.schema';
 import { generateUniqueSlug } from '../lib/slug';
 import { uploadTourImage, deleteTourImages } from '../lib/supabaseStorage';
@@ -90,7 +91,7 @@ toursRouter.get('/:id', requireAuth, async (req, res, next) => {
   }
 });
 
-toursRouter.post('/', requireAuth, async (req, res, next) => {
+toursRouter.post('/', requireAuth, requireAdminRole('ADMIN', 'STAFF'), async (req, res, next) => {
   try {
     const parsed = createTourSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -126,47 +127,59 @@ toursRouter.post('/', requireAuth, async (req, res, next) => {
   }
 });
 
-toursRouter.post('/upload-image', requireAuth, upload.single('image'), async (req, res, next) => {
-  try {
-    if (!req.file) {
-      res.status(400).json({ error: 'image file is required' });
-      return;
-    }
-    if (!ALLOWED_IMAGE_MIMETYPES.includes(req.file.mimetype)) {
-      res.status(400).json({ error: 'unsupported image type' });
-      return;
-    }
+toursRouter.post(
+  '/upload-image',
+  requireAuth,
+  requireAdminRole('ADMIN', 'STAFF'),
+  upload.single('image'),
+  async (req, res, next) => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ error: 'image file is required' });
+        return;
+      }
+      if (!ALLOWED_IMAGE_MIMETYPES.includes(req.file.mimetype)) {
+        res.status(400).json({ error: 'unsupported image type' });
+        return;
+      }
 
-    const url = await uploadTourImage(req.file.buffer, req.file.originalname, req.file.mimetype);
-    res.status(201).json({ url });
-  } catch (err) {
-    next(err);
-  }
-});
-
-toursRouter.post('/upload-images', requireAuth, upload.array('images', 10), async (req, res, next) => {
-  try {
-    const files = (req.files as Express.Multer.File[]) ?? [];
-    if (files.length === 0) {
-      res.status(400).json({ error: 'at least one image file is required' });
-      return;
+      const url = await uploadTourImage(req.file.buffer, req.file.originalname, req.file.mimetype);
+      res.status(201).json({ url });
+    } catch (err) {
+      next(err);
     }
-    const invalidFile = files.find((file) => !ALLOWED_IMAGE_MIMETYPES.includes(file.mimetype));
-    if (invalidFile) {
-      res.status(400).json({ error: 'unsupported image type' });
-      return;
+  },
+);
+
+toursRouter.post(
+  '/upload-images',
+  requireAuth,
+  requireAdminRole('ADMIN', 'STAFF'),
+  upload.array('images', 10),
+  async (req, res, next) => {
+    try {
+      const files = (req.files as Express.Multer.File[]) ?? [];
+      if (files.length === 0) {
+        res.status(400).json({ error: 'at least one image file is required' });
+        return;
+      }
+      const invalidFile = files.find((file) => !ALLOWED_IMAGE_MIMETYPES.includes(file.mimetype));
+      if (invalidFile) {
+        res.status(400).json({ error: 'unsupported image type' });
+        return;
+      }
+
+      const urls = await Promise.all(
+        files.map((file) => uploadTourImage(file.buffer, file.originalname, file.mimetype)),
+      );
+      res.status(201).json({ urls });
+    } catch (err) {
+      next(err);
     }
+  },
+);
 
-    const urls = await Promise.all(
-      files.map((file) => uploadTourImage(file.buffer, file.originalname, file.mimetype)),
-    );
-    res.status(201).json({ urls });
-  } catch (err) {
-    next(err);
-  }
-});
-
-toursRouter.patch('/:id', requireAuth, async (req, res, next) => {
+toursRouter.patch('/:id', requireAuth, requireAdminRole('ADMIN', 'STAFF'), async (req, res, next) => {
   try {
     const parsed = updateTourSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -206,7 +219,7 @@ toursRouter.patch('/:id', requireAuth, async (req, res, next) => {
   }
 });
 
-toursRouter.delete('/:id', requireAuth, async (req, res, next) => {
+toursRouter.delete('/:id', requireAuth, requireAdminRole('ADMIN', 'STAFF'), async (req, res, next) => {
   try {
     const tour = await prisma.tour.delete({ where: { id: req.params.id } });
 

@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { LoaderCircle } from 'lucide-react';
 import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
 import { useRequestError } from '../../lib/useRequestError';
@@ -46,6 +47,13 @@ export function CustomerForm({ customer, onCancel, onSaved }: CustomerFormProps)
     }
   }
 
+  let submitLabel: string;
+  if (submitting) {
+    submitLabel = isEditing ? 'Saving…' : 'Creating…';
+  } else {
+    submitLabel = isEditing ? 'Save Changes' : 'Create Customer';
+  }
+
   return (
     <form className="form-grid" onSubmit={handleSubmit}>
       <h2 className="panel-title">{isEditing ? 'Edit Customer' : 'New Customer'}</h2>
@@ -86,7 +94,8 @@ export function CustomerForm({ customer, onCancel, onSaved }: CustomerFormProps)
           Cancel
         </Button>
         <Button type="submit" disabled={submitting}>
-          {submitting ? (isEditing ? 'Saving…' : 'Creating…') : isEditing ? 'Save Changes' : 'Create Customer'}
+          {submitting && <LoaderCircle className="animate-[spin_0.8s_linear_infinite]" size={14} />}
+          {submitLabel}
         </Button>
       </div>
     </form>

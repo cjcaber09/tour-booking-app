@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { LoaderCircle } from 'lucide-react';
 import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
 import { cleanIpcErrorMessage } from '../../lib/ipc';
@@ -112,6 +113,7 @@ export function SecurityTab() {
 
         <div className="form-actions">
           <Button type="submit" disabled={submitting}>
+            {submitting && <LoaderCircle className="animate-[spin_0.8s_linear_infinite]" size={14} />}
             {submitting ? 'Saving…' : 'Change Password'}
           </Button>
         </div>

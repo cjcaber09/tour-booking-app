@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { LoaderCircle } from 'lucide-react';
 import { useAuth } from '../states/authStore';
 import { Button } from '../components/ui/button';
 
@@ -74,6 +75,7 @@ export function LoginScreen() {
           {recoveryMessage && <p className="m-0 text-sm text-secondary">{recoveryMessage}</p>}
           {!recoveryMessage && (
             <Button type="submit" disabled={recoverySubmitting}>
+              {recoverySubmitting && <LoaderCircle className="animate-[spin_0.8s_linear_infinite]" size={14} />}
               {recoverySubmitting ? 'Sending…' : 'Request recovery'}
             </Button>
           )}
@@ -118,6 +120,7 @@ export function LoginScreen() {
         </label>
         {error && <p className="m-0 text-sm text-error">{error}</p>}
         <Button type="submit" disabled={submitting}>
+          {submitting && <LoaderCircle className="animate-[spin_0.8s_linear_infinite]" size={14} />}
           {submitting ? 'Signing in…' : 'Sign in'}
         </Button>
         <button

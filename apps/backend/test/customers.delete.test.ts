@@ -7,12 +7,21 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpe
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
 const createdCustomerIds: string[] = [];
 const createdTourIds: string[] = [];
 const createdBookingIds: string[] = [];
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Customers Delete Test Admin'));
+  const [admin, guide] = await Promise.all([
+    createTestAdmin('Customers Delete Test Admin'),
+    createTestAdmin('Customers Delete Test Guide', { role: 'GUIDE' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
 });
 
 afterAll(async () => {
@@ -20,6 +29,7 @@ afterAll(async () => {
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
   await prisma.$disconnect();
 });
 
@@ -27,6 +37,13 @@ describe('DELETE /customers/:id', () => {
   it('rejects a request with no authorization header', async () => {
     const res = await request(app).delete('/customers/00000000-0000-0000-0000-000000000000');
     expect(res.status).toBe(401);
+  });
+
+  it('rejects a GUIDE role (403)', async () => {
+    const res = await request(app)
+      .delete('/customers/00000000-0000-0000-0000-000000000000')
+      .set('Authorization', `Bearer ${guideToken}`);
+    expect(res.status).toBe(403);
   });
 
   it('returns 404 for an unknown id', async () => {

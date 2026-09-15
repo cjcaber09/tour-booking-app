@@ -90,6 +90,33 @@ describe('createBookingSchemaAdmin', () => {
       expect((result.data as Record<string, unknown>).amountPaid).toBeUndefined();
     }
   });
+
+  it('defaults confirmed to false when omitted', () => {
+    const result = createBookingSchemaAdmin.safeParse({
+      tourId: validTourId,
+      participants: 2,
+      startDate: validStartDate,
+      customer: validCustomer,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.confirmed).toBe(false);
+    }
+  });
+
+  it('accepts an explicit confirmed: true', () => {
+    const result = createBookingSchemaAdmin.safeParse({
+      tourId: validTourId,
+      participants: 2,
+      startDate: validStartDate,
+      customer: validCustomer,
+      confirmed: true,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.confirmed).toBe(true);
+    }
+  });
 });
 
 describe('createBookingSchemaPublic', () => {
@@ -134,6 +161,20 @@ describe('createBookingSchemaPublic', () => {
       customer: { email: 'not-an-email', name: 'Jane Doe' },
     });
     expect(result.success).toBe(false);
+  });
+
+  it('has no confirmed field, and silently strips one if sent', () => {
+    const result = createBookingSchemaPublic.safeParse({
+      tourId: validTourId,
+      participants: 2,
+      startDate: validStartDate,
+      customer: validCustomer,
+      confirmed: true,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect((result.data as Record<string, unknown>).confirmed).toBeUndefined();
+    }
   });
 });
 

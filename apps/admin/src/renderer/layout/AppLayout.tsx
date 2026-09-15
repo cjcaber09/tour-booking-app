@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sidebar, type View } from './Sidebar';
+import { Sidebar, type View, VIEW_ROLES } from './Sidebar';
 import { Dashboard } from '../screens/Dashboard';
 import { Settings } from '../screens/settings/Settings';
 import { Tours } from '../screens/tours/Tours';
@@ -9,10 +9,21 @@ import { CalendarPage } from '../screens/calendar/CalendarPage';
 import { AuditPage } from '../screens/audit/AuditPage';
 import { Users } from '../screens/users/Users';
 import { Toaster } from '../Toaster';
+import { useAuth } from '../states/authStore';
 import { useRecoveryRequestNotice } from '../lib/useRecoveryRequestNotice';
 import { useSidebarStore } from '../states/sidebarStore';
+import type { AdminRole } from '../../preload';
 
-function renderContent(activeView: View) {
+function renderContent(activeView: View, role: AdminRole | undefined) {
+  // Nav buttons for a role-restricted view are already hidden in Sidebar.tsx, and
+  // this app has no router — activeView only ever changes via a nav button's
+  // onClick — so this is a second, cheap layer rather than the only guard, matching
+  // the same reasoning the 'audit' case below already applies for production builds.
+  const allowedRoles = VIEW_ROLES[activeView];
+  if (allowedRoles && (!role || !allowedRoles.includes(role))) {
+    return null;
+  }
+
   switch (activeView) {
     case 'dashboard':
       return <Dashboard />;
@@ -37,6 +48,7 @@ function renderContent(activeView: View) {
 }
 
 export function AppLayout() {
+  const { session } = useAuth();
   const [activeView, setActiveView] = useState<View>('dashboard');
   const { collapsed, toggleCollapsed } = useSidebarStore();
 
@@ -50,7 +62,7 @@ export function AppLayout() {
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
       />
-      <main className="flex-1 overflow-y-auto bg-surface">{renderContent(activeView)}</main>
+      <main className="flex-1 overflow-y-auto bg-surface">{renderContent(activeView, session?.admin.role)}</main>
       <Toaster />
     </div>
   );

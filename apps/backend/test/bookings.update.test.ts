@@ -7,6 +7,12 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpe
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
+let staffId: string;
+let staffToken: string;
+let leadGuideId: string;
+let leadGuideToken: string;
 let tourId: string;
 let otherTourId: string;
 let customerId: string;
@@ -15,13 +21,13 @@ const createdTourIds: string[] = [];
 const createdCustomerIds: string[] = [];
 const createdBookingIds: string[] = [];
 
-// The "max bookings per day" cap (default 1) counts CONFIRMED bookings per calendar
-// day, and every booking created here via POST /bookings lands as CONFIRMED — so each
-// one needs its own distinct day by default, or later creates would 409 against
-// earlier ones. Anchored far in the future (year 2091, distinct from other test
-// files' anchors) so it never collides with a hardcoded date used elsewhere in the
-// suite; callers that need a specific date (e.g. testing offered-dates validation)
-// still override it via `overrides.startDate`.
+// createBooking() below always passes confirmed: true, so every booking created here
+// lands CONFIRMED by default (most of this file's tests rely on that) — meaning each
+// one needs its own distinct day, or later creates would 409 against earlier ones.
+// Anchored far in the future (year 2091, distinct from other test files' anchors) so
+// it never collides with a hardcoded date used elsewhere in the suite; callers that
+// need a specific date (e.g. testing offered-dates validation) still override it via
+// `overrides.startDate`.
 const dateAnchor = Date.now() % 10000;
 let dayOffset = 0;
 function uniqueStartDate(): string {
@@ -37,6 +43,7 @@ async function createBooking(overrides: Record<string, unknown> = {}) {
       participants: 1,
       startDate: uniqueStartDate(),
       customerId,
+      confirmed: true,
       ...overrides,
     });
   createdBookingIds.push(res.body.id);
@@ -44,7 +51,20 @@ async function createBooking(overrides: Record<string, unknown> = {}) {
 }
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Bookings Update Test Admin'));
+  const [admin, guide, staff, leadGuide] = await Promise.all([
+    createTestAdmin('Bookings Update Test Admin'),
+    createTestAdmin('Bookings Update Test Guide', { role: 'GUIDE' }),
+    createTestAdmin('Bookings Update Test Staff', { role: 'STAFF' }),
+    createTestAdmin('Bookings Update Test Lead Guide', { role: 'LEAD_GUIDE' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
+  staffId = staff.id;
+  staffToken = staff.accessToken;
+  leadGuideId = leadGuide.id;
+  leadGuideToken = leadGuide.accessToken;
 
   const base = Date.now();
   const tour = await prisma.tour.create({
@@ -87,6 +107,9 @@ afterAll(async () => {
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
+  await deleteTestAdmin(staffId);
+  await deleteTestAdmin(leadGuideId);
   await prisma.$disconnect();
 });
 
@@ -103,6 +126,96 @@ describe('PATCH /bookings/:id', () => {
       .send({ notes: 'x' });
     expect(res.status).toBe(404);
   });
+
+  it('rejects a GUIDE role (403)', async () => {
+    const res = await request(app)
+      .patch('/bookings/00000000-0000-0000-0000-000000000000')
+      .set('Authorization', `Bearer ${guideToken}`)
+      .send({ notes: 'x' });
+    expect(res.status).toBe(403);
+  });
+
+  it(
+    'allows STAFF and LEAD_GUIDE to assign a guide, matching their general edit permission',
+    async () => {
+      const booking = await createBooking();
+
+      const staffAttempt = await request(app)
+        .patch(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({ guideId });
+      expect(staffAttempt.status).toBe(200);
+      expect(staffAttempt.body.guide.id).toBe(guideId);
+
+      const leadGuideAttempt = await request(app)
+        .patch(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${leadGuideToken}`)
+        .send({ guideId });
+      expect(leadGuideAttempt.status).toBe(200);
+      expect(leadGuideAttempt.body.guide.id).toBe(guideId);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'allows an ADMIN to assign a booking to a GUIDE-role or LEAD_GUIDE-role admin, and rejects assigning a non-guide-role id',
+    async () => {
+      const booking = await createBooking();
+
+      const assigned = await request(app)
+        .patch(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ guideId });
+      expect(assigned.status).toBe(200);
+      expect(assigned.body.guide.id).toBe(guideId);
+
+      const invalidRole = await request(app)
+        .patch(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ guideId: staffId });
+      expect(invalidRole.status).toBe(400);
+
+      const unassigned = await request(app)
+        .patch(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ guideId: null });
+      expect(unassigned.status).toBe(200);
+      expect(unassigned.body.guide).toBeNull();
+
+      const assignedLeadGuide = await request(app)
+        .patch(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ guideId: leadGuideId });
+      expect(assignedLeadGuide.status).toBe(200);
+      expect(assignedLeadGuide.body.guide.id).toBe(leadGuideId);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'rejects assigning a guide to a still-PENDING booking (409), allows it once confirmed',
+    async () => {
+      const booking = await createBooking({ confirmed: false });
+      expect(booking.status).toBe('PENDING');
+
+      const rejected = await request(app)
+        .patch(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ guideId });
+      expect(rejected.status).toBe(409);
+
+      const confirmRes = await request(app).post(`/bookings/${booking.id}/confirm`).set('Authorization', `Bearer ${accessToken}`);
+      expect(confirmRes.status).toBe(200);
+
+      const accepted = await request(app)
+        .patch(`/bookings/${booking.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ guideId });
+      expect(accepted.status).toBe(200);
+      expect(accepted.body.guide.id).toBe(guideId);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
 
   it(
     'updates notes and leaves everything else unchanged',

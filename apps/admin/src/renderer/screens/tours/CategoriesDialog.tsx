@@ -3,6 +3,8 @@ import { Pencil, Trash2, Check, X } from 'lucide-react';
 import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
 import { cleanIpcErrorMessage } from '../../lib/ipc';
+import { useEscapeToClose } from '../../lib/useEscapeToClose';
+import { useBackdropDismiss } from '../../lib/useBackdropDismiss';
 import { ConfirmDialog } from '../../ConfirmDialog';
 import { Button } from '../../components/ui/button';
 import type { CategorySummary } from '../../../preload';
@@ -94,9 +96,13 @@ export function CategoriesDialog({ onClose }: CategoriesDialogProps) {
     }
   }
 
+  useEscapeToClose(onClose);
+  const backdropRef = useBackdropDismiss(onClose);
+
   return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
+    <div className="dialog-backdrop">
+      <div ref={backdropRef} className="dialog-backdrop-dismiss" aria-hidden="true" />
+      <div className="dialog-card">
         <h3 className="dialog-title">Categories</h3>
 
         <form className="mb-4 flex gap-2" onSubmit={handleCreate}>

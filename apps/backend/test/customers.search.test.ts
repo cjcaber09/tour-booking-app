@@ -7,10 +7,19 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpe
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
 const createdCustomerIds: string[] = [];
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Customers Search Test Admin'));
+  const [admin, guide] = await Promise.all([
+    createTestAdmin('Customers Search Test Admin'),
+    createTestAdmin('Customers Search Test Guide', { role: 'GUIDE' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
 
   const base = Date.now();
   const seeded = await Promise.all([
@@ -30,6 +39,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
   await prisma.$disconnect();
 });
 
@@ -37,6 +47,11 @@ describe('GET /customers', () => {
   it('rejects a request with no authorization header', async () => {
     const res = await request(app).get('/customers').query({ q: 'anything' });
     expect(res.status).toBe(401);
+  });
+
+  it('remains readable for a GUIDE role — BookingForm\'s typeahead depends on this', async () => {
+    const res = await request(app).get('/customers').set('Authorization', `Bearer ${guideToken}`).query({ q: 'anything' });
+    expect(res.status).toBe(200);
   });
 
   it(

@@ -7,6 +7,8 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpe
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
 let tourId: string;
 let customerId: string;
 const createdTourIds: string[] = [];
@@ -22,12 +24,13 @@ const createdBookingIds: string[] = [];
 const dateAnchor = Date.now() % 10000;
 let dayOffset = 0;
 
-async function createPendingBooking() {
+async function createPendingBooking(overrideGuideId?: string) {
   const booking = await prisma.booking.create({
     data: {
       reference: `BK-CONFIRMTEST${Date.now()}${Math.random().toString(16).slice(2)}`,
       tourId,
       customerId,
+      guideId: overrideGuideId,
       participants: 1,
       startDate: new Date(Date.UTC(2092, 0, 1 + dateAnchor + dayOffset++)),
       totalPrice: 100,
@@ -39,7 +42,14 @@ async function createPendingBooking() {
 }
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Bookings Confirm Test Admin'));
+  const [admin, guide] = await Promise.all([
+    createTestAdmin('Bookings Confirm Test Admin'),
+    createTestAdmin('Bookings Confirm Test Guide', { role: 'GUIDE' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
 
   const base = Date.now();
   const tour = await prisma.tour.create({
@@ -65,6 +75,7 @@ afterAll(async () => {
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
   await prisma.$disconnect();
 });
 
@@ -110,6 +121,18 @@ describe('POST /bookings/:id/confirm', () => {
         .post(`/bookings/${booking.id}/confirm`)
         .set('Authorization', `Bearer ${accessToken}`);
       expect(second.status).toBe(409);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'rejects a GUIDE role (403), even when the booking is assigned to them',
+    async () => {
+      const booking = await createPendingBooking(guideId);
+      const res = await request(app)
+        .post(`/bookings/${booking.id}/confirm`)
+        .set('Authorization', `Bearer ${guideToken}`);
+      expect(res.status).toBe(403);
     },
     DB_HEAVY_TEST_TIMEOUT,
   );

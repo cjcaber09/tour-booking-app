@@ -7,6 +7,10 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpe
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
+let otherGuideId: string;
+let otherGuideToken: string;
 let tourId: string;
 let customerId: string;
 const createdTourIds: string[] = [];
@@ -16,7 +20,17 @@ const createdBookingIds: string[] = [];
 const PAGE_SEED_COUNT = 15;
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Bookings List Test Admin'));
+  const [admin, guide, otherGuide] = await Promise.all([
+    createTestAdmin('Bookings List Test Admin'),
+    createTestAdmin('Bookings List Test Guide', { role: 'GUIDE' }),
+    createTestAdmin('Bookings List Test Other Guide', { role: 'GUIDE' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
+  otherGuideId = otherGuide.id;
+  otherGuideToken = otherGuide.accessToken;
 
   const base = Date.now();
   const tour = await prisma.tour.create({
@@ -59,6 +73,8 @@ afterAll(async () => {
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
+  await deleteTestAdmin(otherGuideId);
   await prisma.$disconnect();
 });
 
@@ -190,4 +206,66 @@ describe('GET /bookings', () => {
     const res = await request(app).get('/bookings').query({ page: 0 }).set('Authorization', `Bearer ${accessToken}`);
     expect(res.status).toBe(400);
   });
+
+  it(
+    "a GUIDE only sees bookings assigned to them — the list AND every status-tab count",
+    async () => {
+      const base = Date.now();
+      const [assigned, unassigned, assignedToOther] = await Promise.all([
+        prisma.booking.create({
+          data: {
+            reference: `BK-GUIDESCOPE-MINE${base}`,
+            tourId,
+            customerId,
+            guideId,
+            participants: 1,
+            startDate: new Date(base),
+            totalPrice: 100,
+            status: 'CONFIRMED',
+          },
+        }),
+        prisma.booking.create({
+          data: {
+            reference: `BK-GUIDESCOPE-UNASSIGNED${base}`,
+            tourId,
+            customerId,
+            participants: 1,
+            startDate: new Date(base),
+            totalPrice: 100,
+            status: 'CONFIRMED',
+          },
+        }),
+        prisma.booking.create({
+          data: {
+            reference: `BK-GUIDESCOPE-OTHER${base}`,
+            tourId,
+            customerId,
+            guideId: otherGuideId,
+            participants: 1,
+            startDate: new Date(base),
+            totalPrice: 100,
+            status: 'CONFIRMED',
+          },
+        }),
+      ]);
+      createdBookingIds.push(assigned.id, unassigned.id, assignedToOther.id);
+
+      const res = await request(app)
+        .get('/bookings')
+        .query({ limit: 100 })
+        .set('Authorization', `Bearer ${guideToken}`);
+      expect(res.status).toBe(200);
+
+      const refs = res.body.bookings.map((b: { reference: string }) => b.reference);
+      expect(refs).toContain(`BK-GUIDESCOPE-MINE${base}`);
+      expect(refs).not.toContain(`BK-GUIDESCOPE-UNASSIGNED${base}`);
+      expect(refs).not.toContain(`BK-GUIDESCOPE-OTHER${base}`);
+
+      // The status-tab counts must be scoped too, not just the paginated list —
+      // otherwise "Confirmed (N)" would show the company-wide total.
+      expect(res.body.statusCounts.CONFIRMED).toBe(res.body.bookings.length);
+      expect(res.body.total).toBe(res.body.bookings.length);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
 });

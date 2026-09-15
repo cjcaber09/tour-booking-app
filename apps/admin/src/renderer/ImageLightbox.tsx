@@ -38,7 +38,8 @@ export function ImageLightbox({ images, startIndex, onClose }: ImageLightboxProp
   }, [images.length, onClose]);
 
   return (
-    <div className="fixed inset-0 z-[950] flex items-center justify-center bg-black/85" onClick={onClose}>
+    <div className="fixed inset-0 z-[950] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/85" aria-hidden="true" onClick={onClose} />
       <Button
         variant="ghost"
         className={cn(NAV_BUTTON_CLASS, 'right-6 top-6 h-11 w-11')}
@@ -52,31 +53,20 @@ export function ImageLightbox({ images, startIndex, onClose }: ImageLightboxProp
         <Button
           variant="ghost"
           className={cn(NAV_BUTTON_CLASS, 'left-6 top-1/2 h-14 w-14 -translate-y-1/2')}
-          onClick={(e) => {
-            e.stopPropagation();
-            showPrev();
-          }}
+          onClick={showPrev}
           aria-label="Previous image"
         >
           <ChevronLeft size={32} />
         </Button>
       )}
 
-      <img
-        className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
-        src={images[index]}
-        alt=""
-        onClick={(e) => e.stopPropagation()}
-      />
+      <img className="relative max-h-[85vh] max-w-[90vw] rounded-lg object-contain" src={images[index]} alt="" />
 
       {images.length > 1 && (
         <Button
           variant="ghost"
           className={cn(NAV_BUTTON_CLASS, 'right-6 top-1/2 h-14 w-14 -translate-y-1/2')}
-          onClick={(e) => {
-            e.stopPropagation();
-            showNext();
-          }}
+          onClick={showNext}
           aria-label="Next image"
         >
           <ChevronRight size={32} />

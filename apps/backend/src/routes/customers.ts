@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
+import { requireAdminRole } from '../middleware/requireAdminRole';
 import { normalizeEmail } from '../lib/customers';
 import { bookingListSelect, finalizeBookingList } from '../lib/bookings';
 import { listCustomersQuerySchema, createCustomerSchema, updateCustomerSchema } from './customers.schema';
@@ -82,7 +83,7 @@ customersRouter.get('/:id', requireAuth, async (req, res, next) => {
   }
 });
 
-customersRouter.post('/', requireAuth, async (req, res, next) => {
+customersRouter.post('/', requireAuth, requireAdminRole('ADMIN', 'STAFF'), async (req, res, next) => {
   try {
     const parsed = createCustomerSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -118,7 +119,7 @@ customersRouter.post('/', requireAuth, async (req, res, next) => {
   }
 });
 
-customersRouter.patch('/:id', requireAuth, async (req, res, next) => {
+customersRouter.patch('/:id', requireAuth, requireAdminRole('ADMIN', 'STAFF'), async (req, res, next) => {
   try {
     const parsed = updateCustomerSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -159,7 +160,7 @@ customersRouter.patch('/:id', requireAuth, async (req, res, next) => {
   }
 });
 
-customersRouter.delete('/:id', requireAuth, async (req, res, next) => {
+customersRouter.delete('/:id', requireAuth, requireAdminRole('ADMIN', 'STAFF'), async (req, res, next) => {
   try {
     const customer = await prisma.customer.delete({ where: { id: req.params.id } });
     res.status(200).json({ id: customer.id });
