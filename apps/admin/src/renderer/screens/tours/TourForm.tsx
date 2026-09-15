@@ -1,5 +1,5 @@
 import { ChangeEvent, DragEvent, FormEvent, useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, LoaderCircle } from 'lucide-react';
 import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
 import { useRequestError } from '../../lib/useRequestError';
@@ -590,6 +590,7 @@ export function TourForm({ tour, onCancel, onSaved }: TourFormProps) {
           Cancel
         </Button>
         <Button type="submit" disabled={submitting}>
+          {submitting && <LoaderCircle className="animate-[spin_0.8s_linear_infinite]" size={14} />}
           {submitting ? (isEditing ? 'Saving…' : 'Creating…') : isEditing ? 'Save Changes' : 'Create Tour'}
         </Button>
       </div>

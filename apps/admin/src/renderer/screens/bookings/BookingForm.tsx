@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, LoaderCircle } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
@@ -444,6 +444,7 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
           Cancel
         </Button>
         <Button type="submit" disabled={submitting}>
+          {submitting && <LoaderCircle className="animate-[spin_0.8s_linear_infinite]" size={14} />}
           {submitting ? (isEditing ? 'Saving…' : 'Creating…') : isEditing ? 'Save Changes' : 'Create Booking'}
         </Button>
       </div>

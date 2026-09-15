@@ -34,17 +34,18 @@ export function BookingView({ booking, onBack, onBookingUpdated }: BookingViewPr
     if (!session) {
       return;
     }
-    setShowAssignDialog(false);
     setAssigning(true);
     try {
       await window.bookingsAPI.update(currentBooking.id, { guideId }, session.accessToken);
       // update()'s return type isn't precise enough to trust directly — refetch the
       // full, correctly-typed BookingDetail instead.
       const refreshed = await window.bookingsAPI.get(currentBooking.id, session.accessToken);
+      setShowAssignDialog(false);
       toast.success('Guide assigned.');
       setCurrentBooking(refreshed);
       onBookingUpdated?.(refreshed);
     } catch (err) {
+      setShowAssignDialog(false);
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not assign guide.');
     } finally {
       setAssigning(false);
@@ -137,7 +138,7 @@ export function BookingView({ booking, onBack, onBookingUpdated }: BookingViewPr
               {currentBooking.guide ? 'Reassign Guide' : 'Assign Guide'}
             </Button>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mt-2">
             {currentBooking.guide ? (
               <>
                 {currentBooking.guide.avatarUrl ? (
@@ -211,6 +212,7 @@ export function BookingView({ booking, onBack, onBookingUpdated }: BookingViewPr
           booking={{ reference: currentBooking.reference, guide: currentBooking.guide }}
           onConfirm={(guideId) => handleConfirmAssignGuide(guideId)}
           onCancel={() => setShowAssignDialog(false)}
+          submitting={assigning}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Copy, Eye, EyeOff } from 'lucide-react';
+import { Copy, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { useAuth } from '../../states/authStore';
 import { useRequestError } from '../../lib/useRequestError';
 import { trimStrings } from '../../lib/utils';
@@ -162,6 +162,7 @@ export function UserForm({ onCancel, onCreated }: UserFormProps) {
           Cancel
         </Button>
         <Button type="submit" disabled={submitting}>
+          {submitting && <LoaderCircle className="animate-[spin_0.8s_linear_infinite]" size={14} />}
           {submitting ? 'Creating…' : 'Create User'}
         </Button>
       </div>

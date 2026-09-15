@@ -295,6 +295,14 @@ export function Bookings() {
   const [ongoingActionBooking, setOngoingActionBooking] = useState<BookingListItem | null>(null);
   const [recordPaymentBooking, setRecordPaymentBooking] = useState<BookingListItem | null>(null);
   const [assignGuideBooking, setAssignGuideBooking] = useState<BookingListItem | null>(null);
+  const [assigningGuide, setAssigningGuide] = useState(false);
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
+  const [ongoingSubmitting, setOngoingSubmitting] = useState(false);
+  // Shared by both cancel dialogs (ConfirmDialog for a still-PENDING booking,
+  // CancelBookingDialog otherwise) since they funnel into the same runCancel() and
+  // only one can ever be open at a time.
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [recordPaymentSubmitting, setRecordPaymentSubmitting] = useState(false);
 
   // Search and status are sent to the backend (see bookingsListStore's fetchPage) so
   // they apply across the whole dataset, not just whatever page is currently loaded —
@@ -361,16 +369,19 @@ export function Bookings() {
       return;
     }
     const booking = confirmActionBooking;
-    setConfirmActionBooking(null);
     setRowLoadingId(booking.id);
+    setConfirmSubmitting(true);
     try {
       await window.bookingsAPI.confirm(booking.id, session.accessToken);
+      setConfirmActionBooking(null);
       toast.success('Booking confirmed.');
       updateItem(booking.id, (b) => ({ ...b, status: 'CONFIRMED' }));
     } catch (err) {
+      setConfirmActionBooking(null);
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not confirm booking.');
     } finally {
       setRowLoadingId(null);
+      setConfirmSubmitting(false);
     }
   }
 
@@ -386,16 +397,19 @@ export function Bookings() {
       return;
     }
     const booking = ongoingActionBooking;
-    setOngoingActionBooking(null);
     setRowLoadingId(booking.id);
+    setOngoingSubmitting(true);
     try {
       await window.bookingsAPI.ongoing(booking.id, session.accessToken);
+      setOngoingActionBooking(null);
       toast.success('Booking marked ongoing.');
       updateItem(booking.id, (b) => ({ ...b, status: 'ONGOING' }));
     } catch (err) {
+      setOngoingActionBooking(null);
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not mark booking ongoing.');
     } finally {
       setRowLoadingId(null);
+      setOngoingSubmitting(false);
     }
   }
 
@@ -414,27 +428,25 @@ export function Bookings() {
     if (!session || !confirmPendingCancel) {
       return;
     }
-    const booking = confirmPendingCancel;
-    setConfirmPendingCancel(null);
-    await runCancel(booking, Number(booking.amountPaid));
+    await runCancel(confirmPendingCancel, Number(confirmPendingCancel.amountPaid), () => setConfirmPendingCancel(null));
   }
 
   async function handleConfirmedCancel(refundAmount: number) {
     if (!confirmedCancelBooking) {
       return;
     }
-    const booking = confirmedCancelBooking;
-    setConfirmedCancelBooking(null);
-    await runCancel(booking, refundAmount);
+    await runCancel(confirmedCancelBooking, refundAmount, () => setConfirmedCancelBooking(null));
   }
 
-  async function runCancel(booking: BookingListItem, refundAmount: number) {
+  async function runCancel(booking: BookingListItem, refundAmount: number, closeDialog: () => void) {
     if (!session) {
       return;
     }
     setRowLoadingId(booking.id);
+    setCancelSubmitting(true);
     try {
       await window.bookingsAPI.cancel(booking.id, { refundAmount }, session.accessToken);
+      closeDialog();
       toast.success('Booking cancelled.');
       // Mirrors the backend's own rule (POST /bookings/:id/cancel): paymentStatus flips to
       // REFUNDED whenever refundAmount > 0, otherwise it's left as whatever it already was.
@@ -444,9 +456,11 @@ export function Bookings() {
         paymentStatus: refundAmount > 0 ? 'REFUNDED' : b.paymentStatus,
       }));
     } catch (err) {
+      closeDialog();
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not cancel booking.');
     } finally {
       setRowLoadingId(null);
+      setCancelSubmitting(false);
     }
   }
 
@@ -467,8 +481,8 @@ export function Bookings() {
       return;
     }
     const booking = recordPaymentBooking;
-    setRecordPaymentBooking(null);
     setRowLoadingId(booking.id);
+    setRecordPaymentSubmitting(true);
     try {
       let proofUrl: string | undefined;
       if (payload.file) {
@@ -488,12 +502,15 @@ export function Bookings() {
             ? { method: 'INVOICE_REFERENCE', amount: payload.amount, invoiceReference: payload.invoiceReference! }
             : { method: 'FILE', amount: payload.amount, proofUrl: proofUrl! };
       const updated = await window.bookingsAPI.recordPayment(booking.id, recordPayload, session.accessToken);
+      setRecordPaymentBooking(null);
       toast.success('Payment recorded.');
       updateItem(booking.id, (b) => ({ ...b, amountPaid: updated.amountPaid, paymentStatus: updated.paymentStatus }));
     } catch (err) {
+      setRecordPaymentBooking(null);
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not record payment.');
     } finally {
       setRowLoadingId(null);
+      setRecordPaymentSubmitting(false);
     }
   }
 
@@ -509,19 +526,22 @@ export function Bookings() {
       return;
     }
     const booking = assignGuideBooking;
-    setAssignGuideBooking(null);
     setRowLoadingId(booking.id);
+    setAssigningGuide(true);
     try {
       await window.bookingsAPI.update(booking.id, { guideId }, session.accessToken);
+      setAssignGuideBooking(null);
       toast.success('Guide assigned.');
       updateItem(booking.id, (b) => ({
         ...b,
         guide: guide ? { id: guide.id, name: guide.name, avatarUrl: guide.avatarUrl } : null,
       }));
     } catch (err) {
+      setAssignGuideBooking(null);
       toast.error(err instanceof Error ? cleanIpcErrorMessage(err.message) : 'Could not assign guide.');
     } finally {
       setRowLoadingId(null);
+      setAssigningGuide(false);
     }
   }
 
@@ -769,6 +789,7 @@ export function Bookings() {
           confirmLabel="Confirm"
           onConfirm={handleConfirmConfirm}
           onCancel={() => setConfirmActionBooking(null)}
+          submitting={confirmSubmitting}
         />
       )}
 
@@ -779,6 +800,7 @@ export function Bookings() {
           confirmLabel="Mark Ongoing"
           onConfirm={handleMarkOngoingConfirm}
           onCancel={() => setOngoingActionBooking(null)}
+          submitting={ongoingSubmitting}
         />
       )}
 
@@ -794,6 +816,7 @@ export function Bookings() {
           danger
           onConfirm={handleConfirmPendingCancel}
           onCancel={() => setConfirmPendingCancel(null)}
+          submitting={cancelSubmitting}
         />
       )}
 
@@ -805,6 +828,7 @@ export function Bookings() {
           }}
           onConfirm={handleConfirmedCancel}
           onCancel={() => setConfirmedCancelBooking(null)}
+          submitting={cancelSubmitting}
         />
       )}
 
@@ -817,6 +841,7 @@ export function Bookings() {
           }}
           onConfirm={handleConfirmRecordPayment}
           onCancel={() => setRecordPaymentBooking(null)}
+          submitting={recordPaymentSubmitting}
         />
       )}
 
@@ -825,6 +850,7 @@ export function Bookings() {
           booking={{ reference: assignGuideBooking.reference, guide: assignGuideBooking.guide }}
           onConfirm={handleConfirmAssignGuide}
           onCancel={() => setAssignGuideBooking(null)}
+          submitting={assigningGuide}
         />
       )}
 

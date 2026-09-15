@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { LoaderCircle } from 'lucide-react';
 import { useAuth } from './states/authStore';
 import { toast } from './toast';
+import { useEscapeToClose } from './lib/useEscapeToClose';
 import { Button } from './components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
 import type { AssignableGuide } from '../preload';
@@ -12,9 +14,14 @@ interface AssignGuideDialogProps {
   booking: { reference: string; guide: { id: string; name: string } | null };
   onConfirm: (guideId: string | null, guide: AssignableGuide | null) => void;
   onCancel: () => void;
+  // Parent-controlled: true for as long as onConfirm's request is in flight. Drives
+  // the Save button's spinner and keeps the dialog open (and inert) until the parent
+  // closes it once the response comes back, so the spinner is actually visible rather
+  // than the dialog disappearing the instant Save is clicked.
+  submitting: boolean;
 }
 
-export function AssignGuideDialog({ booking, onConfirm, onCancel }: AssignGuideDialogProps) {
+export function AssignGuideDialog({ booking, onConfirm, onCancel, submitting }: AssignGuideDialogProps) {
   const { session } = useAuth();
   const [guides, setGuides] = useState<AssignableGuide[]>([]);
   const [guidesLoading, setGuidesLoading] = useState(false);
@@ -40,14 +47,17 @@ export function AssignGuideDialog({ booking, onConfirm, onCancel }: AssignGuideD
     onConfirm(selected, guides.find((guide) => guide.id === selected) ?? null);
   }
 
+  useEscapeToClose(onCancel, submitting);
+
   return (
-    <div className="dialog-backdrop" onClick={onCancel}>
-      <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
+    <div className="dialog-backdrop">
+      <div className="dialog-backdrop-dismiss" aria-hidden="true" onClick={submitting ? undefined : onCancel} />
+      <div className="dialog-card">
         <h3 className="dialog-title">Assign guide</h3>
         <p className="dialog-message">Assign a guide or lead guide to {booking.reference}.</p>
         <label className="mb-2 flex flex-col gap-2 text-sm text-secondary">
           <span>Guide</span>
-          <Select value={selected} onValueChange={setSelected} disabled={guidesLoading}>
+          <Select value={selected} onValueChange={setSelected} disabled={guidesLoading || submitting}>
             <SelectTrigger>
               <SelectValue placeholder={guidesLoading ? 'Loading guides…' : 'Select a guide'} />
             </SelectTrigger>
@@ -63,9 +73,12 @@ export function AssignGuideDialog({ booking, onConfirm, onCancel }: AssignGuideD
           </Select>
         </label>
         <div className="dialog-actions">
-          <Button onClick={onCancel}>Cancel</Button>
-          <Button disabled={guidesLoading} onClick={handleConfirm}>
-            Save
+          <Button onClick={onCancel} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button disabled={guidesLoading || submitting} onClick={handleConfirm}>
+            {submitting && <LoaderCircle className="animate-[spin_0.8s_linear_infinite]" size={14} />}
+            {submitting ? 'Saving…' : 'Save'}
           </Button>
         </div>
       </div>
