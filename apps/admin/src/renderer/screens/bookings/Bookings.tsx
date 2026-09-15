@@ -44,6 +44,38 @@ function isLocked(booking: BookingListItem): boolean {
   );
 }
 
+function GuideAvatarCell({ guide }: { guide: BookingListItem['guide'] }) {
+  if (!guide) {
+    return <span className="text-xs text-muted">—</span>;
+  }
+  if (guide.avatarUrl) {
+    return <img className="h-6 w-6 rounded-full object-cover" src={guide.avatarUrl} alt={guide.name} title={guide.name} />;
+  }
+  return (
+    <div
+      className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-shadow-dark)] text-xs font-semibold text-heading opacity-70"
+      title={guide.name}
+      aria-label={guide.name}
+    >
+      {guide.name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
+function buildRecordPaymentPayload(
+  payload: { amount: number; method: PaymentMethod; invoiceReference?: string },
+  proofUrl: string | undefined,
+): RecordPaymentPayload {
+  switch (payload.method) {
+    case 'CASH':
+      return { method: 'CASH', amount: payload.amount };
+    case 'INVOICE_REFERENCE':
+      return { method: 'INVOICE_REFERENCE', amount: payload.amount, invoiceReference: payload.invoiceReference! };
+    case 'FILE':
+      return { method: 'FILE', amount: payload.amount, proofUrl: proofUrl! };
+  }
+}
+
 function isSameCalendarDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
@@ -94,13 +126,16 @@ interface RowActionContext {
   currentAdminId: string | undefined;
 }
 
-// Mirrors the exact conditions the table used to gate each action button on, just
-// reorganized into "one primary action" plus "everything else in the overflow menu".
-function getRowActions(
-  booking: BookingListItem,
-  handlers: RowActionHandlers,
-  context: RowActionContext,
-): { primary: RowAction | null; overflow: RowAction[] } {
+interface RowActionPermissions {
+  canEdit: boolean;
+  canRecordPayment: boolean;
+  canConfirm: boolean;
+  canMarkOngoing: boolean;
+  canCancel: boolean;
+  canAssignGuide: boolean;
+}
+
+function computeRowActionPermissions(booking: BookingListItem, context: RowActionContext): RowActionPermissions {
   const cancelled = booking.status === 'CANCELLED';
   const locked = isLocked(booking);
   // Explicit `!= null` guard: without it, an *unassigned* booking's `guide?.id`
@@ -108,20 +143,63 @@ function getRowActions(
   // shouldn't happen given this screen only renders once authenticated, but cheap
   // to rule out entirely.
   const isAssignedToMe = context.currentAdminId != null && booking.guide?.id === context.currentAdminId;
-  const canEdit = !context.isActionRestrictedGuide && !cancelled && !locked;
-  const canRecordPayment = !context.isActionRestrictedGuide && !cancelled && booking.paymentStatus !== 'PAID';
-  const canConfirm = !context.isActionRestrictedGuide && booking.status === 'PENDING';
-  const canMarkOngoing =
-    (!context.isActionRestrictedGuide || isAssignedToMe) &&
-    booking.status === 'CONFIRMED' &&
-    isStartDateDue(booking.startDate);
-  const canCancel =
-    (!context.isActionRestrictedGuide || isAssignedToMe) && !cancelled && !(locked && booking.paymentStatus === 'PAID');
-  // Assignment only makes sense once the booking is confirmed (matches the backend's
-  // own PATCH /:id rule) — deliberately not gated on `locked` too, since reassigning a
-  // guide (e.g. the original one becomes unavailable mid-tour) should stay possible
-  // regardless of lock state, same as the Edit-form picker already allows.
-  const canAssignGuide = !context.isActionRestrictedGuide && !cancelled && booking.status !== 'PENDING';
+  // A non-restricted role (ADMIN/LEAD_GUIDE/STAFF) can always act; a restricted GUIDE
+  // can only act on a booking assigned to them.
+  const canGuideAct = !context.isActionRestrictedGuide || isAssignedToMe;
+
+  return {
+    canEdit: !context.isActionRestrictedGuide && !cancelled && !locked,
+    canRecordPayment: !context.isActionRestrictedGuide && !cancelled && booking.paymentStatus !== 'PAID',
+    canConfirm: !context.isActionRestrictedGuide && booking.status === 'PENDING',
+    canMarkOngoing: canGuideAct && booking.status === 'CONFIRMED' && isStartDateDue(booking.startDate),
+    canCancel: canGuideAct && !cancelled && !(locked && booking.paymentStatus === 'PAID'),
+    // Assignment only makes sense once the booking is confirmed (matches the backend's
+    // own PATCH /:id rule) — deliberately not gated on `locked` too, since reassigning a
+    // guide (e.g. the original one becomes unavailable mid-tour) should stay possible
+    // regardless of lock state, same as the Edit-form picker already allows.
+    canAssignGuide: !context.isActionRestrictedGuide && !cancelled && booking.status !== 'PENDING',
+  };
+}
+
+// Mirrors the exact conditions the table used to gate each action button on, just
+// reorganized into "one primary action" plus "everything else in the overflow menu".
+function pickPrimaryAndOverflow(
+  permissions: RowActionPermissions,
+  actions: {
+    view: RowAction;
+    edit: RowAction;
+    confirm: RowAction;
+    markOngoing: RowAction;
+    recordPayment: RowAction;
+    cancel: RowAction;
+    assignGuide: RowAction;
+  },
+): { primary: RowAction | null; overflow: RowAction[] } {
+  const { canEdit, canRecordPayment, canConfirm, canMarkOngoing, canCancel, canAssignGuide } = permissions;
+  const { view, edit, confirm, markOngoing, recordPayment, cancel, assignGuide } = actions;
+
+  let primary: RowAction | null = null;
+  if (canConfirm) primary = confirm;
+  else if (canRecordPayment) primary = recordPayment;
+  else if (canMarkOngoing) primary = markOngoing;
+
+  const overflow: RowAction[] = [view];
+  if (canEdit) overflow.push(edit);
+  if (canConfirm && primary?.key !== 'confirm') overflow.push(confirm);
+  if (canRecordPayment && primary?.key !== 'record-payment') overflow.push(recordPayment);
+  if (canMarkOngoing && primary?.key !== 'mark-ongoing') overflow.push(markOngoing);
+  if (canAssignGuide) overflow.push(assignGuide);
+  if (canCancel) overflow.push(cancel);
+
+  return { primary, overflow };
+}
+
+function getRowActions(
+  booking: BookingListItem,
+  handlers: RowActionHandlers,
+  context: RowActionContext,
+): { primary: RowAction | null; overflow: RowAction[] } {
+  const permissions = computeRowActionPermissions(booking, context);
 
   const viewAction: RowAction = { key: 'view', label: 'View', Icon: Eye, onClick: () => handlers.onView(booking) };
   const editAction: RowAction = { key: 'edit', label: 'Edit', Icon: Pencil, onClick: () => handlers.onEdit(booking) };
@@ -160,20 +238,15 @@ function getRowActions(
     onClick: () => handlers.onAssignGuide(booking),
   };
 
-  let primary: RowAction | null = null;
-  if (canConfirm) primary = confirmAction;
-  else if (canRecordPayment) primary = recordPaymentAction;
-  else if (canMarkOngoing) primary = markOngoingAction;
-
-  const overflow: RowAction[] = [viewAction];
-  if (canEdit) overflow.push(editAction);
-  if (canConfirm && primary?.key !== 'confirm') overflow.push(confirmAction);
-  if (canRecordPayment && primary?.key !== 'record-payment') overflow.push(recordPaymentAction);
-  if (canMarkOngoing && primary?.key !== 'mark-ongoing') overflow.push(markOngoingAction);
-  if (canAssignGuide) overflow.push(assignGuideAction);
-  if (canCancel) overflow.push(cancelAction);
-
-  return { primary, overflow };
+  return pickPrimaryAndOverflow(permissions, {
+    view: viewAction,
+    edit: editAction,
+    confirm: confirmAction,
+    markOngoing: markOngoingAction,
+    recordPayment: recordPaymentAction,
+    cancel: cancelAction,
+    assignGuide: assignGuideAction,
+  });
 }
 
 interface BookingRow {
@@ -210,7 +283,11 @@ function BookingCard({
         STATUS_BORDER_CLASS[booking.status],
       )}
     >
-      <div className="flex cursor-pointer items-start justify-between gap-3" onClick={() => onView(booking.id)}>
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-start justify-between gap-3 border-none bg-transparent p-0 text-left"
+        onClick={() => onView(booking.id)}
+      >
         <div className="flex flex-col gap-0.5">
           <span className="text-xs text-muted">{booking.reference}</span>
           <span className="font-semibold text-heading">{booking.tour.title}</span>
@@ -223,7 +300,7 @@ function BookingCard({
             <span className="text-xs text-muted">Cancelled {formatDate(booking.cancelledAt)}</span>
           )}
         </div>
-      </div>
+      </button>
 
       <div className="flex items-center justify-between text-sm">
         <span>{rangeText}</span>
@@ -495,12 +572,7 @@ export function Bookings() {
           session.accessToken,
         ));
       }
-      const recordPayload: RecordPaymentPayload =
-        payload.method === 'CASH'
-          ? { method: 'CASH', amount: payload.amount }
-          : payload.method === 'INVOICE_REFERENCE'
-            ? { method: 'INVOICE_REFERENCE', amount: payload.amount, invoiceReference: payload.invoiceReference! }
-            : { method: 'FILE', amount: payload.amount, proofUrl: proofUrl! };
+      const recordPayload = buildRecordPaymentPayload(payload, proofUrl);
       const updated = await window.bookingsAPI.recordPayment(booking.id, recordPayload, session.accessToken);
       setRecordPaymentBooking(null);
       toast.success('Payment recorded.');
@@ -694,26 +766,7 @@ export function Bookings() {
                                   </div>
                                 </td>
                                 <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
-                                  {booking.guide ? (
-                                    booking.guide.avatarUrl ? (
-                                      <img
-                                        className="h-6 w-6 rounded-full object-cover"
-                                        src={booking.guide.avatarUrl}
-                                        alt={booking.guide.name}
-                                        title={booking.guide.name}
-                                      />
-                                    ) : (
-                                      <div
-                                        className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-shadow-dark)] text-xs font-semibold text-heading opacity-70"
-                                        title={booking.guide.name}
-                                        aria-label={booking.guide.name}
-                                      >
-                                        {booking.guide.name.charAt(0).toUpperCase()}
-                                      </div>
-                                    )
-                                  ) : (
-                                    <span className="text-xs text-muted">—</span>
-                                  )}
+                                  <GuideAvatarCell guide={booking.guide} />
                                 </td>
                                 <td className="table-cell-clickable" onClick={() => handleViewClick(booking.id)}>
                                   <div className="flex flex-col items-start gap-1">

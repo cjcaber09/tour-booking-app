@@ -3,6 +3,7 @@ import { LoaderCircle } from 'lucide-react';
 import { useAuth } from './states/authStore';
 import { toast } from './toast';
 import { useEscapeToClose } from './lib/useEscapeToClose';
+import { useBackdropDismiss } from './lib/useBackdropDismiss';
 import { Button } from './components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
 import type { AssignableGuide } from '../preload';
@@ -48,10 +49,11 @@ export function AssignGuideDialog({ booking, onConfirm, onCancel, submitting }: 
   }
 
   useEscapeToClose(onCancel, submitting);
+  const backdropRef = useBackdropDismiss(onCancel, submitting);
 
   return (
     <div className="dialog-backdrop">
-      <div className="dialog-backdrop-dismiss" aria-hidden="true" onClick={submitting ? undefined : onCancel} />
+      <div ref={backdropRef} className="dialog-backdrop-dismiss" aria-hidden="true" />
       <div className="dialog-card">
         <h3 className="dialog-title">Assign guide</h3>
         <p className="dialog-message">Assign a guide or lead guide to {booking.reference}.</p>

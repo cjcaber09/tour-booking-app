@@ -1,6 +1,7 @@
 import { LoaderCircle } from 'lucide-react';
 import { cn } from './lib/utils';
 import { useEscapeToClose } from './lib/useEscapeToClose';
+import { useBackdropDismiss } from './lib/useBackdropDismiss';
 import { Button } from './components/ui/button';
 
 interface ConfirmDialogProps {
@@ -28,10 +29,11 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   useEscapeToClose(onCancel, submitting);
+  const backdropRef = useBackdropDismiss(onCancel, submitting);
 
   return (
     <div className="dialog-backdrop">
-      <div className="dialog-backdrop-dismiss" aria-hidden="true" onClick={submitting ? undefined : onCancel} />
+      <div ref={backdropRef} className="dialog-backdrop-dismiss" aria-hidden="true" />
       <div className="dialog-card">
         <h3 className="dialog-title">{title}</h3>
         <p className="dialog-message">{message}</p>

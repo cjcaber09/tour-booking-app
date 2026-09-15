@@ -4,6 +4,7 @@ import { Button } from './components/ui/button';
 import { cn } from './lib/utils';
 import { useAppSettings } from './states/appSettingsStore';
 import { useEscapeToClose } from './lib/useEscapeToClose';
+import { useBackdropDismiss } from './lib/useBackdropDismiss';
 
 type PaymentMethod = 'CASH' | 'INVOICE_REFERENCE' | 'FILE';
 
@@ -71,10 +72,11 @@ export function RecordPaymentDialog({ booking, onConfirm, onCancel, submitting }
   }
 
   useEscapeToClose(onCancel, submitting);
+  const backdropRef = useBackdropDismiss(onCancel, submitting);
 
   return (
     <div className="dialog-backdrop">
-      <div className="dialog-backdrop-dismiss" aria-hidden="true" onClick={submitting ? undefined : onCancel} />
+      <div ref={backdropRef} className="dialog-backdrop-dismiss" aria-hidden="true" />
       <div className="dialog-card w-[min(440px,calc(100vw-3rem))]">
         <h3 className="dialog-title">Record payment</h3>
         <p className="dialog-message">Recording a payment for {booking.reference}.</p>

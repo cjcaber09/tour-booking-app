@@ -3,6 +3,7 @@ import { LoaderCircle } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { useAppSettings } from './states/appSettingsStore';
 import { useEscapeToClose } from './lib/useEscapeToClose';
+import { useBackdropDismiss } from './lib/useBackdropDismiss';
 
 interface CancelBookingDialogProps {
   booking: { reference: string; amountPaid: number };
@@ -19,10 +20,11 @@ export function CancelBookingDialog({ booking, onConfirm, onCancel, submitting }
   const isValid = refundAmount.trim() !== '' && !Number.isNaN(parsed) && parsed >= 0 && parsed <= booking.amountPaid;
 
   useEscapeToClose(onCancel, submitting);
+  const backdropRef = useBackdropDismiss(onCancel, submitting);
 
   return (
     <div className="dialog-backdrop">
-      <div className="dialog-backdrop-dismiss" aria-hidden="true" onClick={submitting ? undefined : onCancel} />
+      <div ref={backdropRef} className="dialog-backdrop-dismiss" aria-hidden="true" />
       <div className="dialog-card">
         <h3 className="dialog-title">Cancel booking</h3>
         <p className="dialog-message">

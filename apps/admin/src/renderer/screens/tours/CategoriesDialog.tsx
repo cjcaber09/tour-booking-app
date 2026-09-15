@@ -4,6 +4,7 @@ import { useAuth } from '../../states/authStore';
 import { toast } from '../../toast';
 import { cleanIpcErrorMessage } from '../../lib/ipc';
 import { useEscapeToClose } from '../../lib/useEscapeToClose';
+import { useBackdropDismiss } from '../../lib/useBackdropDismiss';
 import { ConfirmDialog } from '../../ConfirmDialog';
 import { Button } from '../../components/ui/button';
 import type { CategorySummary } from '../../../preload';
@@ -96,10 +97,11 @@ export function CategoriesDialog({ onClose }: CategoriesDialogProps) {
   }
 
   useEscapeToClose(onClose);
+  const backdropRef = useBackdropDismiss(onClose);
 
   return (
     <div className="dialog-backdrop">
-      <div className="dialog-backdrop-dismiss" aria-hidden="true" onClick={onClose} />
+      <div ref={backdropRef} className="dialog-backdrop-dismiss" aria-hidden="true" />
       <div className="dialog-card">
         <h3 className="dialog-title">Categories</h3>
 

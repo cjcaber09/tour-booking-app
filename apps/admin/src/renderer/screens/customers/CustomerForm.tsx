@@ -47,6 +47,13 @@ export function CustomerForm({ customer, onCancel, onSaved }: CustomerFormProps)
     }
   }
 
+  let submitLabel: string;
+  if (submitting) {
+    submitLabel = isEditing ? 'Saving…' : 'Creating…';
+  } else {
+    submitLabel = isEditing ? 'Save Changes' : 'Create Customer';
+  }
+
   return (
     <form className="form-grid" onSubmit={handleSubmit}>
       <h2 className="panel-title">{isEditing ? 'Edit Customer' : 'New Customer'}</h2>
@@ -88,7 +95,7 @@ export function CustomerForm({ customer, onCancel, onSaved }: CustomerFormProps)
         </Button>
         <Button type="submit" disabled={submitting}>
           {submitting && <LoaderCircle className="animate-[spin_0.8s_linear_infinite]" size={14} />}
-          {submitting ? (isEditing ? 'Saving…' : 'Creating…') : isEditing ? 'Save Changes' : 'Create Customer'}
+          {submitLabel}
         </Button>
       </div>
     </form>

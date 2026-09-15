@@ -12,21 +12,20 @@ import {
 } from './bookings.schema';
 import {
   createBooking,
+  updateBooking,
   bookingInclude,
   bookingListSelect,
   finalizeBookingList,
   getBookingCalendarWindow,
   getBookingsStatsWindows,
   BookingServiceError,
-  resolveCustomer,
-  computeTotalPrice,
   derivePaymentStatus,
   serializeBooking,
   autoCompleteIfDue,
   todayIsPastOrEqualStartDate,
   assertDailyBookingCapNotExceeded,
   assertBookingAccessAllowed,
-  dateOnly,
+  isBookingLocked,
 } from '../lib/bookings';
 import { upload } from '../lib/upload';
 import { uploadPaymentProof } from '../lib/supabaseStorage';
@@ -226,89 +225,7 @@ bookingsRouter.patch('/:id', requireAuth, requireAdminRole('ADMIN', 'LEAD_GUIDE'
       return;
     }
 
-    const { tourId, customerId, customer, participants, startDate, amountPaid, notes, guideId } = parsed.data;
-
-    // Assigning a guide only makes sense once the booking is actually confirmed — a
-    // PENDING booking is still waiting on staff review and may never happen at all.
-    // Un-assigning (guideId: null) isn't gated: nothing can be assigned while PENDING
-    // in the first place, so there's nothing to block clearing.
-    if (guideId && existing.status === 'PENDING') {
-      res.status(409).json({ error: 'cannot assign a guide until the booking is confirmed' });
-      return;
-    }
-
-    if (guideId) {
-      const guide = await prisma.admin.findUnique({ where: { id: guideId } });
-      if (!guide || !['GUIDE', 'LEAD_GUIDE'].includes(guide.role) || !guide.isActive) {
-        res.status(400).json({ error: 'guideId must reference an active admin with the GUIDE or LEAD_GUIDE role' });
-        return;
-      }
-    }
-
-    // amountPaid-only bodies (Record Payment) are always allowed; anything that touches
-    // the booking's actual details is blocked once the tour is due, ongoing, or completed.
-    const isFullEdit = [tourId, customerId, customer, participants, startDate, notes].some((v) => v !== undefined);
-    const isLocked =
-      existing.status === 'ONGOING' ||
-      existing.status === 'COMPLETED' ||
-      (existing.status === 'CONFIRMED' && todayIsPastOrEqualStartDate(existing.startDate));
-    if (isFullEdit && isLocked) {
-      res.status(409).json({ error: 'cannot edit a booking once it is due, ongoing, or completed' });
-      return;
-    }
-
-    // The tour/participants branch and the customer branch touch independent tables and
-    // don't depend on each other's result, so they're resolved concurrently rather than
-    // as two sequential round trips.
-    const totalPricePromise =
-      tourId !== undefined || participants !== undefined || startDate !== undefined
-        ? computeTotalPrice(
-            tourId ?? existing.tourId,
-            participants ?? existing.participants,
-            new Date(startDate ?? existing.startDate),
-            false,
-          ).then((r) => r.totalPrice)
-        : Promise.resolve(existing.totalPrice);
-
-    const resolvedCustomerIdPromise =
-      customerId !== undefined || customer !== undefined
-        ? resolveCustomer({ customerId, customer }).then((c) => c.id)
-        : Promise.resolve(existing.customerId);
-
-    const [totalPrice, resolvedCustomerId] = await Promise.all([totalPricePromise, resolvedCustomerIdPromise]);
-
-    // Only a CONFIRMED booking's startDate guards a day's slot — a PENDING booking
-    // never does (see assertDailyBookingCapNotExceeded), and only re-check when the
-    // date is actually changing: this booking's own row still counts toward its
-    // current day until the update commits, so an unconditional check would falsely
-    // block a no-op resubmission of the same startDate on an already-full day. Checked
-    // after computeTotalPrice above so an invalid tourId/offered-date still surfaces
-    // its own error instead of being masked by an unrelated full-day rejection.
-    if (existing.status === 'CONFIRMED' && startDate !== undefined) {
-      const newDay = dateOnly(new Date(startDate));
-      if (newDay.getTime() !== dateOnly(existing.startDate).getTime()) {
-        await assertDailyBookingCapNotExceeded(new Date(startDate));
-      }
-    }
-
-    const effectiveAmountPaid = amountPaid !== undefined ? amountPaid : existing.amountPaid;
-
-    const booking = await prisma.booking.update({
-      where: { id: req.params.id },
-      data: {
-        ...(tourId !== undefined ? { tourId } : {}),
-        customerId: resolvedCustomerId,
-        ...(participants !== undefined ? { participants } : {}),
-        ...(startDate !== undefined ? { startDate: new Date(startDate) } : {}),
-        ...(amountPaid !== undefined ? { amountPaid } : {}),
-        ...(notes !== undefined ? { notes } : {}),
-        ...(guideId !== undefined ? { guideId } : {}),
-        totalPrice,
-        paymentStatus: derivePaymentStatus(effectiveAmountPaid, totalPrice),
-      },
-      include: bookingInclude,
-    });
-
+    const booking = await updateBooking(existing, parsed.data);
     res.json(serializeBooking(booking));
   } catch (err) {
     if (err instanceof BookingServiceError) {
@@ -478,11 +395,7 @@ bookingsRouter.post('/:id/cancel', requireAuth, requireAdminRole(...ALL_ROLES), 
       res.status(409).json({ error: 'booking is already cancelled' });
       return;
     }
-    const isLocked =
-      existing.status === 'ONGOING' ||
-      existing.status === 'COMPLETED' ||
-      (existing.status === 'CONFIRMED' && todayIsPastOrEqualStartDate(existing.startDate));
-    if (isLocked && existing.paymentStatus === 'PAID') {
+    if (isBookingLocked(existing) && existing.paymentStatus === 'PAID') {
       res.status(409).json({ error: 'booking cannot be cancelled once it is due, ongoing, or completed' });
       return;
     }

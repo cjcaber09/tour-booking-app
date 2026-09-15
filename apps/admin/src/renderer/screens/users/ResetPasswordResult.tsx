@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Copy, Eye, EyeOff } from 'lucide-react';
 import { toast } from '../../toast';
 import { useEscapeToClose } from '../../lib/useEscapeToClose';
+import { useBackdropDismiss } from '../../lib/useBackdropDismiss';
 import { Button } from '../../components/ui/button';
 import type { CreateAdminResult } from '../../../preload';
 
@@ -19,10 +20,11 @@ export function ResetPasswordResult({ result, onClose }: ResetPasswordResultProp
   }
 
   useEscapeToClose(onClose);
+  const backdropRef = useBackdropDismiss(onClose);
 
   return (
     <div className="dialog-backdrop">
-      <div className="dialog-backdrop-dismiss" aria-hidden="true" onClick={onClose} />
+      <div ref={backdropRef} className="dialog-backdrop-dismiss" aria-hidden="true" />
       <div className="dialog-card">
         <h3 className="dialog-title">Password reset</h3>
         <p className="dialog-message">
