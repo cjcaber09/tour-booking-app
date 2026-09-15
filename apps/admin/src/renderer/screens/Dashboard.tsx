@@ -15,6 +15,7 @@ const chartConfig: ChartConfig = {
 
 export function Dashboard() {
   const { session } = useAuth();
+  const isAdmin = session?.admin.role === 'ADMIN';
   const { formatCurrency, formatDate } = useAppSettings();
 
   const [stats, setStats] = useState<BookingsStatsResult | null>(null);
@@ -94,10 +95,12 @@ export function Dashboard() {
   }, [session]);
 
   useEffect(() => {
-    fetchStats();
+    if (isAdmin) {
+      fetchStats();
+    }
     fetchRecentBookings();
     fetchUpcomingBookings();
-  }, [fetchStats, fetchRecentBookings, fetchUpcomingBookings]);
+  }, [isAdmin, fetchStats, fetchRecentBookings, fetchUpcomingBookings]);
 
   const statCards = stats
     ? [
@@ -110,44 +113,48 @@ export function Dashboard() {
 
   return (
     <div className="box-border p-8">
-      {statsError && <p className="status-message status-message-error">{statsError}</p>}
-      {!statsError && loadingStats && !stats && <p className="status-message">Loading…</p>}
+      {isAdmin && (
+        <>
+          {statsError && <p className="status-message status-message-error">{statsError}</p>}
+          {!statsError && loadingStats && !stats && <p className="status-message">Loading…</p>}
 
-      {!statsError && stats && (
-        <section className="mb-8 grid grid-cols-2 gap-6 lg:grid-cols-4">
-          {statCards.map((stat) => (
-            <div className="flex flex-col gap-2 rounded-[20px] bg-surface p-6 neu-raised-lg" key={stat.label}>
-              <span className="font-display text-4xl tracking-[0.03em] text-stat">{stat.value}</span>
-              <span className="text-sm text-muted">{stat.label}</span>
-            </div>
-          ))}
-        </section>
-      )}
+          {!statsError && stats && (
+            <section className="mb-8 grid grid-cols-2 gap-6 lg:grid-cols-4">
+              {statCards.map((stat) => (
+                <div className="flex flex-col gap-2 rounded-[20px] bg-surface p-6 neu-raised-lg" key={stat.label}>
+                  <span className="font-display text-4xl tracking-[0.03em] text-stat">{stat.value}</span>
+                  <span className="text-sm text-muted">{stat.label}</span>
+                </div>
+              ))}
+            </section>
+          )}
 
-      <section className="mb-8 rounded-[20px] bg-surface p-6 neu-raised-lg">
-        <h2 className="m-0 mb-4 font-display text-xl tracking-[0.03em] text-heading">Bookings — last 7 days</h2>
-        {stats && (
-          <ChartContainer config={chartConfig} className="h-40 w-full">
-            <BarChart data={stats.bookingsTrend}>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(value: string) => format(new Date(value), 'EEE')}
-              />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(value) => format(new Date(value as string), 'PPP')}
+          <section className="mb-8 rounded-[20px] bg-surface p-6 neu-raised-lg">
+            <h2 className="m-0 mb-4 font-display text-xl tracking-[0.03em] text-heading">Bookings — last 7 days</h2>
+            {stats && (
+              <ChartContainer config={chartConfig} className="h-40 w-full">
+                <BarChart data={stats.bookingsTrend}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value: string) => format(new Date(value), 'EEE')}
                   />
-                }
-              />
-              <Bar dataKey="count" fill="var(--color-count)" radius={4} />
-            </BarChart>
-          </ChartContainer>
-        )}
-      </section>
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(value) => format(new Date(value as string), 'PPP')}
+                      />
+                    }
+                  />
+                  <Bar dataKey="count" fill="var(--color-count)" radius={4} />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </section>
+        </>
+      )}
 
       <section className="mb-8 table-container">
         <h2 className="m-0 mb-4 font-display text-xl tracking-[0.03em] text-heading">

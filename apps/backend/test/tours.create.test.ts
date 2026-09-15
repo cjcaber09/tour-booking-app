@@ -7,17 +7,33 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpe
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
+let staffId: string;
+let staffToken: string;
 const createdTourIds: string[] = [];
 const createdCategoryIds: string[] = [];
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Tours Test Admin'));
+  const [admin, guide, staff] = await Promise.all([
+    createTestAdmin('Tours Test Admin'),
+    createTestAdmin('Tours Test Guide', { role: 'GUIDE' }),
+    createTestAdmin('Tours Test Staff', { role: 'STAFF' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
+  staffId = staff.id;
+  staffToken = staff.accessToken;
 });
 
 afterAll(async () => {
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await prisma.category.deleteMany({ where: { id: { in: createdCategoryIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
+  await deleteTestAdmin(staffId);
   await prisma.$disconnect();
 });
 
@@ -96,6 +112,31 @@ describe('POST /tours', () => {
     expect(res.status).toBe(201);
     createdTourIds.push(res.body.id);
     expect(res.body.imageCover).toBeNull();
+  });
+
+  it('rejects a GUIDE role (403)', async () => {
+    const res = await request(app)
+      .post('/tours')
+      .set('Authorization', `Bearer ${guideToken}`)
+      .send({
+        title: 'Guide Forbidden Tour',
+        description: 'Should not be created',
+        price: 100,
+      });
+    expect(res.status).toBe(403);
+  });
+
+  it('allows a STAFF role to create a tour', async () => {
+    const res = await request(app)
+      .post('/tours')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({
+        title: 'Staff Created Tour',
+        description: 'Created by staff',
+        price: 100,
+      });
+    expect(res.status).toBe(201);
+    createdTourIds.push(res.body.id);
   });
 
   it('rejects a request with no authorization header', async () => {

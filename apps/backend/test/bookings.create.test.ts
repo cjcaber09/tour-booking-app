@@ -7,6 +7,10 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpe
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
+let staffId: string;
+let staffToken: string;
 let activeTourId: string;
 let inactiveTourId: string;
 let existingCustomerId: string;
@@ -14,13 +18,15 @@ const createdTourIds: string[] = [];
 const createdBookingIds: string[] = [];
 const createdCustomerIds: string[] = [];
 
-// The "max bookings per day" cap (default 1) counts CONFIRMED bookings per calendar
-// day, and every booking this file creates via POST /bookings lands as CONFIRMED —
-// so each one needs its own distinct day, or later creates would 409 against earlier
-// ones. Anchored far in the future (year 2090) so it can never collide with a
-// hardcoded date used elsewhere in the suite; `base` (this file's own beforeAll
-// timestamp) spreads different files/runs across a wide day range, and the per-call
-// counter guarantees every booking created within this file gets its own day.
+// Admin-created bookings now default to PENDING (see the `confirmed` field below),
+// which never occupies the "max bookings per day" cap — but tests that explicitly
+// pass `confirmed: true` do land CONFIRMED and do occupy it, so every booking here
+// still gets its own distinct day as cheap insurance against a 409 that has nothing
+// to do with what a given test is actually checking. Anchored far in the future
+// (year 2090) so it can never collide with a hardcoded date used elsewhere in the
+// suite; `base` (this file's own beforeAll timestamp) spreads different files/runs
+// across a wide day range, and the per-call counter guarantees every booking created
+// within this file gets its own day.
 const dateAnchor = Date.now() % 10000;
 let dayOffset = 0;
 function uniqueStartDate(): string {
@@ -28,7 +34,17 @@ function uniqueStartDate(): string {
 }
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Bookings Create Test Admin'));
+  const [admin, guide, staff] = await Promise.all([
+    createTestAdmin('Bookings Create Test Admin'),
+    createTestAdmin('Bookings Create Test Guide', { role: 'GUIDE' }),
+    createTestAdmin('Bookings Create Test Staff', { role: 'STAFF' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
+  staffId = staff.id;
+  staffToken = staff.accessToken;
 
   const base = Date.now();
   const activeTour = await prisma.tour.create({
@@ -68,6 +84,8 @@ afterAll(async () => {
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
+  await deleteTestAdmin(staffId);
   await prisma.$disconnect();
 });
 
@@ -77,8 +95,39 @@ describe('POST /bookings', () => {
     expect(res.status).toBe(401);
   });
 
+  it('rejects a GUIDE role (403)', async () => {
+    const res = await request(app)
+      .post('/bookings')
+      .set('Authorization', `Bearer ${guideToken}`)
+      .send({
+        tourId: activeTourId,
+        participants: 1,
+        startDate: uniqueStartDate(),
+        customerId: existingCustomerId,
+      });
+    expect(res.status).toBe(403);
+  });
+
   it(
-    'creates a booking with an existing customerId',
+    'allows a STAFF role to create a booking',
+    async () => {
+      const res = await request(app)
+        .post('/bookings')
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({
+          tourId: activeTourId,
+          participants: 1,
+          startDate: uniqueStartDate(),
+          customerId: existingCustomerId,
+        });
+      expect(res.status).toBe(201);
+      createdBookingIds.push(res.body.id);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'creates a booking with an existing customerId, defaulting to PENDING when confirmed is omitted',
     async () => {
       const res = await request(app)
         .post('/bookings')
@@ -92,11 +141,32 @@ describe('POST /bookings', () => {
 
       expect(res.status).toBe(201);
       createdBookingIds.push(res.body.id);
-      expect(res.body.status).toBe('CONFIRMED');
+      expect(res.body.status).toBe('PENDING');
       expect(res.body.paymentStatus).toBe('UNPAID');
       expect(Number(res.body.amountPaid)).toBe(0);
       expect(res.body.customer.id).toBe(existingCustomerId);
       expect(res.body.reference).toMatch(/^BK-[0-9A-F]{8}$/);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'creates a CONFIRMED booking directly when confirmed: true is passed',
+    async () => {
+      const res = await request(app)
+        .post('/bookings')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          tourId: activeTourId,
+          participants: 1,
+          startDate: uniqueStartDate(),
+          customerId: existingCustomerId,
+          confirmed: true,
+        });
+
+      expect(res.status).toBe(201);
+      createdBookingIds.push(res.body.id);
+      expect(res.body.status).toBe('CONFIRMED');
     },
     DB_HEAVY_TEST_TIMEOUT,
   );

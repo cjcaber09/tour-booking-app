@@ -71,6 +71,27 @@ adminsRouter.get('/', requireAuth, requireAdminRole('ADMIN'), async (req, res, n
   }
 });
 
+// Minimal-field roster for the booking-assignment picker — open to everyone who can
+// assign a guide (ADMIN/LEAD_GUIDE/STAFF), unlike GET / which stays ADMIN-only and
+// returns sensitive fields (email, phone, lastLoginAt, recoveryRequestedAt).
+adminsRouter.get(
+  '/assignable-guides',
+  requireAuth,
+  requireAdminRole('ADMIN', 'LEAD_GUIDE', 'STAFF'),
+  async (_req, res, next) => {
+    try {
+      const guides = await prisma.admin.findMany({
+        where: { role: { in: ['GUIDE', 'LEAD_GUIDE'] }, isActive: true },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, avatarUrl: true, role: true },
+      });
+      res.json({ guides });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 adminsRouter.post('/', requireAuth, requireAdminRole('ADMIN'), async (req, res, next) => {
   try {
     const parsed = createAdminSchema.safeParse(req.body);

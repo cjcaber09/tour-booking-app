@@ -164,9 +164,10 @@ export interface CreateBookingPayload {
   customerId?: string;
   customer?: CustomerInput;
   notes?: string;
+  confirmed?: boolean;
 }
 
-export type UpdateBookingPayload = Partial<CreateBookingPayload> & { amountPaid?: number };
+export type UpdateBookingPayload = Partial<CreateBookingPayload> & { amountPaid?: number; guideId?: string | null };
 
 export interface CancelBookingPayload {
   refundAmount: number;
@@ -214,6 +215,7 @@ export interface BookingListItem {
   cancelledAt: string | null;
   tour: { id: string; title: string };
   customer: { id: string; name: string; email: string };
+  guide: { id: string; name: string; avatarUrl: string | null } | null;
 }
 
 export interface ListBookingsResult {
@@ -257,6 +259,7 @@ export interface BookingDetail {
   updatedAt: string;
   tour: { id: string; title: string; slug: string; imageCover: string | null };
   customer: CustomerSummary;
+  guide: { id: string; name: string; email: string; avatarUrl: string | null } | null;
   payments: PaymentRecord[];
 }
 
@@ -473,6 +476,7 @@ export interface UpdateAdminPayload {
 export interface AdminListFilters {
   q?: string;
   isActive?: boolean;
+  role?: AdminRole;
 }
 
 export interface ListAdminsResult {
@@ -484,9 +488,22 @@ export interface ListAdminsResult {
   statusCounts: { ALL: number; ACTIVE: number; SUSPENDED: number };
 }
 
+export interface AssignableGuide {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  role: 'GUIDE' | 'LEAD_GUIDE';
+}
+
+export interface ListAssignableGuidesResult {
+  guides: AssignableGuide[];
+}
+
 contextBridge.exposeInMainWorld('adminsAPI', {
   list: (page: number, limit: number, filters: AdminListFilters, accessToken: string): Promise<ListAdminsResult> =>
     ipcRenderer.invoke('admins:list', page, limit, filters, accessToken),
+  listAssignableGuides: (accessToken: string): Promise<ListAssignableGuidesResult> =>
+    ipcRenderer.invoke('admins:list-assignable-guides', accessToken),
   create: (payload: CreateAdminPayload, accessToken: string): Promise<CreateAdminResult> =>
     ipcRenderer.invoke('admins:create', payload, accessToken),
   update: (id: string, payload: UpdateAdminPayload, accessToken: string): Promise<AdminListItem> =>

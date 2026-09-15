@@ -6,6 +6,7 @@ import type {
   UploadImagesResult,
   ListToursResult,
   TourDetail,
+  TourListFilters,
   BookingListFilters,
   ListBookingsResult,
   CalendarBookingsResult,
@@ -39,6 +40,8 @@ import type {
   CreateAdminResult,
   UpdateAdminPayload,
   ListAdminsResult,
+  AdminListFilters,
+  ListAssignableGuidesResult,
 } from '../preload';
 
 declare global {
@@ -64,7 +67,7 @@ declare global {
         files: { data: string; filename: string; mimetype: string }[],
         accessToken: string,
       ) => Promise<UploadImagesResult>;
-      list: (page: number, limit: number, accessToken: string) => Promise<ListToursResult>;
+      list: (page: number, limit: number, filters: TourListFilters, accessToken: string) => Promise<ListToursResult>;
     };
     bookingsAPI: {
       list: (
@@ -128,7 +131,8 @@ declare global {
       changePassword: (payload: ChangePasswordPayload, accessToken: string) => Promise<void>;
     };
     adminsAPI: {
-      list: (page: number, limit: number, accessToken: string) => Promise<ListAdminsResult>;
+      list: (page: number, limit: number, filters: AdminListFilters, accessToken: string) => Promise<ListAdminsResult>;
+      listAssignableGuides: (accessToken: string) => Promise<ListAssignableGuidesResult>;
       create: (payload: CreateAdminPayload, accessToken: string) => Promise<CreateAdminResult>;
       update: (id: string, payload: UpdateAdminPayload, accessToken: string) => Promise<AdminListItem>;
       delete: (id: string, accessToken: string) => Promise<{ id: string }>;

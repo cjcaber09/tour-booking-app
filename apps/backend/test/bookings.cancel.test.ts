@@ -7,6 +7,12 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpe
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
+let otherGuideId: string;
+let otherGuideToken: string;
+let leadGuideToken: string;
+let leadGuideId: string;
 let tourId: string;
 let customerId: string;
 const createdTourIds: string[] = [];
@@ -31,7 +37,20 @@ async function createBooking(overrides: Record<string, unknown> = {}) {
 }
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Bookings Cancel Test Admin'));
+  const [admin, guide, otherGuide, leadGuide] = await Promise.all([
+    createTestAdmin('Bookings Cancel Test Admin'),
+    createTestAdmin('Bookings Cancel Test Guide', { role: 'GUIDE' }),
+    createTestAdmin('Bookings Cancel Test Other Guide', { role: 'GUIDE' }),
+    createTestAdmin('Bookings Cancel Test Lead Guide', { role: 'LEAD_GUIDE' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
+  otherGuideId = otherGuide.id;
+  otherGuideToken = otherGuide.accessToken;
+  leadGuideId = leadGuide.id;
+  leadGuideToken = leadGuide.accessToken;
 
   const base = Date.now();
   const tour = await prisma.tour.create({
@@ -57,6 +76,9 @@ afterAll(async () => {
   await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
+  await deleteTestAdmin(otherGuideId);
+  await deleteTestAdmin(leadGuideId);
   await prisma.$disconnect();
 });
 
@@ -73,6 +95,47 @@ describe('POST /bookings/:id/cancel', () => {
       .send({ refundAmount: 0 });
     expect(res.status).toBe(404);
   });
+
+  it(
+    'rejects a GUIDE not assigned to the booking (403), allows the assigned GUIDE (200)',
+    async () => {
+      const unassigned = await createBooking();
+      const forbidden = await request(app)
+        .post(`/bookings/${unassigned.id}/cancel`)
+        .set('Authorization', `Bearer ${guideToken}`)
+        .send({ refundAmount: 0 });
+      expect(forbidden.status).toBe(403);
+
+      const assignedToOther = await createBooking({ guideId: otherGuideId });
+      const stillForbidden = await request(app)
+        .post(`/bookings/${assignedToOther.id}/cancel`)
+        .set('Authorization', `Bearer ${guideToken}`)
+        .send({ refundAmount: 0 });
+      expect(stillForbidden.status).toBe(403);
+
+      const assignedToMe = await createBooking({ guideId });
+      const allowed = await request(app)
+        .post(`/bookings/${assignedToMe.id}/cancel`)
+        .set('Authorization', `Bearer ${guideToken}`)
+        .send({ refundAmount: 0 });
+      expect(allowed.status).toBe(200);
+      expect(allowed.body.status).toBe('CANCELLED');
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
+
+  it(
+    'allows LEAD_GUIDE regardless of assignment (unrestricted, unlike GUIDE)',
+    async () => {
+      const booking = await createBooking();
+      const res = await request(app)
+        .post(`/bookings/${booking.id}/cancel`)
+        .set('Authorization', `Bearer ${leadGuideToken}`)
+        .send({ refundAmount: 0 });
+      expect(res.status).toBe(200);
+    },
+    DB_HEAVY_TEST_TIMEOUT,
+  );
 
   it(
     'fully refunds a fully paid booking and sets paymentStatus to REFUNDED',

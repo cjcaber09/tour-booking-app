@@ -7,6 +7,8 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT } from './helpe
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
 const createdTourIds: string[] = [];
 const createdCategoryIds: string[] = [];
 
@@ -15,13 +17,21 @@ const createdCategoryIds: string[] = [];
 const CATEGORY_SET_TEST_TIMEOUT = 25000;
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Tours Update Test Admin'));
+  const [admin, guide] = await Promise.all([
+    createTestAdmin('Tours Update Test Admin'),
+    createTestAdmin('Tours Update Test Guide', { role: 'GUIDE' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
 });
 
 afterAll(async () => {
   await prisma.tour.deleteMany({ where: { id: { in: createdTourIds } } });
   await prisma.category.deleteMany({ where: { id: { in: createdCategoryIds } } });
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
   await prisma.$disconnect();
 });
 
@@ -29,6 +39,14 @@ describe('PATCH /tours/:id', () => {
   it('rejects a request with no authorization header', async () => {
     const res = await request(app).patch('/tours/00000000-0000-0000-0000-000000000000').send({ title: 'x' });
     expect(res.status).toBe(401);
+  });
+
+  it('rejects a GUIDE role (403)', async () => {
+    const res = await request(app)
+      .patch('/tours/00000000-0000-0000-0000-000000000000')
+      .set('Authorization', `Bearer ${guideToken}`)
+      .send({ title: 'x' });
+    expect(res.status).toBe(403);
   });
 
   it('returns 404 for an unknown id', async () => {

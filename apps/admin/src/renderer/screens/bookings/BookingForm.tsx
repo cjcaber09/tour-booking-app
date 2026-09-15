@@ -9,7 +9,7 @@ import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../../co
 import { Calendar } from '../../components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Button } from '../../components/ui/button';
-import type { CreateBookingPayload, BookingDetail, TourListItem, CustomerSummary } from '../../../preload';
+import type { CreateBookingPayload, BookingDetail, TourListItem, CustomerSummary, AssignableGuide } from '../../../preload';
 
 interface BookingFormProps {
   booking?: BookingDetail;
@@ -22,13 +22,22 @@ interface FormState {
   participants: string;
   startDate: string;
   notes: string;
+  guideId: string;
+  confirmed: boolean;
 }
+
+// Radix's Select.Item rejects an empty-string value (it's reserved internally to
+// mean "clear back to the placeholder"), so "no guide assigned" needs a real
+// sentinel rather than ''. Never collides with an actual admin id, which are UUIDs.
+const UNASSIGNED = 'UNASSIGNED';
 
 const INITIAL_STATE: FormState = {
   tourId: '',
   participants: '1',
   startDate: '',
   notes: '',
+  guideId: UNASSIGNED,
+  confirmed: false,
 };
 
 const DATE_FORMAT = 'yyyy-MM-dd';
@@ -50,6 +59,10 @@ function deriveFormState(booking: BookingDetail | undefined): FormState {
     participants: String(booking.participants),
     startDate: toDateInputValue(booking.startDate),
     notes: booking.notes ?? '',
+    guideId: booking.guide?.id ?? UNASSIGNED,
+    // Irrelevant once editing (the checkbox only renders in create mode) — the
+    // booking's real status is already set; this is just to satisfy FormState's shape.
+    confirmed: false,
   };
 }
 
@@ -58,6 +71,9 @@ type CustomerMode = 'search' | 'selected' | 'new';
 export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
   const isEditing = booking != null;
   const { session } = useAuth();
+  // ADMIN/LEAD_GUIDE/STAFF can all assign a guide — only the restricted GUIDE role
+  // cannot (matches the backend's own exact-role check on PATCH /:id).
+  const canAssignGuide = session != null && session.admin.role !== 'GUIDE';
   const [form, setForm] = useState<FormState>(() => deriveFormState(booking));
   const { fieldErrors, setFieldErrors, handleRequestError } = useRequestError();
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +81,9 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
 
   const [tours, setTours] = useState<TourListItem[]>([]);
   const [toursLoading, setToursLoading] = useState(false);
+
+  const [guides, setGuides] = useState<AssignableGuide[]>([]);
+  const [guidesLoading, setGuidesLoading] = useState(false);
 
   const [customerMode, setCustomerMode] = useState<CustomerMode>(booking ? 'selected' : 'search');
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(booking?.customer ?? null);
@@ -80,11 +99,25 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
     }
     setToursLoading(true);
     window.toursAPI
-      .list(1, 100, session.accessToken)
+      .list(1, 100, {}, session.accessToken)
       .then((result) => setTours(result.tours))
       .catch(() => toast.error('Could not load tours.'))
       .finally(() => setToursLoading(false));
   }, [session]);
+
+  // Only fetched when the guide-assignment field is actually shown (someone who can
+  // assign, editing an existing booking) — no point loading the guide roster otherwise.
+  useEffect(() => {
+    if (!session || !canAssignGuide || !isEditing) {
+      return;
+    }
+    setGuidesLoading(true);
+    window.adminsAPI
+      .listAssignableGuides(session.accessToken)
+      .then((result) => setGuides(result.guides))
+      .catch(() => toast.error('Could not load guides.'))
+      .finally(() => setGuidesLoading(false));
+  }, [session, canAssignGuide, isEditing]);
 
   useEffect(() => {
     if (customerMode !== 'search' || !session || customerQuery.trim().length < 2) {
@@ -143,7 +176,11 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
     setFieldErrors({});
 
     try {
-      const payload: CreateBookingPayload = {
+      // Widened beyond CreateBookingPayload so `guideId` (an UpdateBookingPayload-only
+      // field) can be assigned below — still satisfies both create() and update()'s
+      // expected shapes (TS excess-property checks don't fire on a variable passed by
+      // reference, only on fresh object literals).
+      const payload: CreateBookingPayload & { guideId?: string | null } = {
         tourId: form.tourId,
         participants: Number(form.participants),
         startDate: new Date(form.startDate).toISOString(),
@@ -160,6 +197,20 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
       }
 
       if (form.notes) payload.notes = form.notes;
+
+      // Only ever sent when the field is actually editable (someone who can assign,
+      // editing an existing booking) — otherwise this would either be rejected by the
+      // backend (GUIDE isn't allowed to touch guideId) or sent during create, which
+      // the backend's create schema doesn't even accept.
+      if (canAssignGuide && isEditing) {
+        payload.guideId = form.guideId === UNASSIGNED ? null : form.guideId;
+      }
+
+      // Only relevant during create — editing an existing booking's status goes
+      // through the separate Confirm row action instead.
+      if (!isEditing) {
+        payload.confirmed = form.confirmed;
+      }
 
       const sanitizedPayload = trimStrings(payload);
       if (isEditing && booking) {
@@ -239,6 +290,49 @@ export function BookingForm({ booking, onCancel, onSaved }: BookingFormProps) {
         </Popover>
         {fieldErrors.startDate && <p className="form-field-error">{fieldErrors.startDate}</p>}
       </label>
+
+      {!isEditing && (
+        <label className="form-field col-span-full flex-row items-center gap-2">
+          <input
+            name="confirmed"
+            type="checkbox"
+            checked={form.confirmed}
+            onChange={(e) => update('confirmed', e.target.checked)}
+          />
+          <span>Confirm immediately</span>
+        </label>
+      )}
+
+      {isEditing &&
+        (canAssignGuide ? (
+          <label className="form-field">
+            <span>Assign guide</span>
+            <Select
+              value={form.guideId}
+              onValueChange={(value) => update('guideId', value)}
+              disabled={guidesLoading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={guidesLoading ? 'Loading guides…' : 'Select a guide'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                {guides.map((guide) => (
+                  <SelectItem key={guide.id} value={guide.id}>
+                    {guide.name}
+                    {guide.role === 'LEAD_GUIDE' ? ' (Lead Guide)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldErrors.guideId && <p className="form-field-error">{fieldErrors.guideId}</p>}
+          </label>
+        ) : (
+          <div className="form-field">
+            <span>Assigned guide</span>
+            <span>{booking?.guide?.name ?? 'Unassigned'}</span>
+          </div>
+        ))}
 
       <div className="form-field col-span-full">
         <span>Customer</span>

@@ -1,4 +1,4 @@
-import { Prisma, PaymentStatus, BookingStatus } from '@prisma/client';
+import { Prisma, PaymentStatus, BookingStatus, AdminRole } from '@prisma/client';
 import { prisma } from './prisma';
 import { generateUniqueBookingReference } from './bookingReference';
 import { normalizeEmail } from './customers';
@@ -10,6 +10,15 @@ export class BookingServiceError extends Error {
     message: string,
   ) {
     super(message);
+  }
+}
+
+// Exact-role check — GUIDE only. LEAD_GUIDE stays unrestricted regardless of
+// assignment, unlike the renderer's isGuideRole() which treats GUIDE and LEAD_GUIDE
+// as the same "guide-type" bucket for layout purposes.
+export async function assertBookingAccessAllowed(role: AdminRole, adminId: string, booking: { guideId: string | null }) {
+  if (role === 'GUIDE' && booking.guideId !== adminId) {
+    throw new BookingServiceError(403, 'you are not assigned to this booking');
   }
 }
 
@@ -91,6 +100,7 @@ export async function computeTotalPrice(
 export const bookingInclude = {
   tour: { select: { id: true, title: true, slug: true, imageCover: true, duration: true } },
   customer: { select: { id: true, name: true, email: true, phone: true } },
+  guide: { select: { id: true, name: true, email: true, avatarUrl: true } },
   payments: { orderBy: { createdAt: 'desc' } },
 } satisfies Prisma.BookingInclude;
 
@@ -107,6 +117,7 @@ export const bookingListSelect = {
   cancelledAt: true,
   tour: { select: { id: true, title: true, duration: true } },
   customer: { select: { id: true, name: true, email: true } },
+  guide: { select: { id: true, name: true, avatarUrl: true } },
 } satisfies Prisma.BookingSelect;
 
 export function dateOnly(date: Date): Date {

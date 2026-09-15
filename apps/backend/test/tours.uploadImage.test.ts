@@ -7,10 +7,19 @@ import { createTestAdmin, deleteTestAdmin, DB_HEAVY_TEST_TIMEOUT, BUCKET, supaba
 const app = createApp();
 let adminId: string;
 let accessToken: string;
+let guideId: string;
+let guideToken: string;
 const uploadedPaths: string[] = [];
 
 beforeAll(async () => {
-  ({ id: adminId, accessToken } = await createTestAdmin('Upload Test Admin'));
+  const [admin, guide] = await Promise.all([
+    createTestAdmin('Upload Test Admin'),
+    createTestAdmin('Upload Test Guide', { role: 'GUIDE' }),
+  ]);
+  adminId = admin.id;
+  accessToken = admin.accessToken;
+  guideId = guide.id;
+  guideToken = guide.accessToken;
 });
 
 afterAll(async () => {
@@ -18,6 +27,7 @@ afterAll(async () => {
     await supabase.storage.from(BUCKET).remove(uploadedPaths);
   }
   await deleteTestAdmin(adminId);
+  await deleteTestAdmin(guideId);
   await prisma.$disconnect();
 });
 
@@ -42,6 +52,14 @@ describe('POST /tours/upload-image', () => {
       .post('/tours/upload-image')
       .attach('image', Buffer.from('fake-jpeg-bytes'), { filename: 'cover.jpg', contentType: 'image/jpeg' });
     expect(res.status).toBe(401);
+  });
+
+  it('rejects a GUIDE role (403)', async () => {
+    const res = await request(app)
+      .post('/tours/upload-image')
+      .set('Authorization', `Bearer ${guideToken}`)
+      .attach('image', Buffer.from('fake-jpeg-bytes'), { filename: 'cover.jpg', contentType: 'image/jpeg' });
+    expect(res.status).toBe(403);
   });
 
   it('rejects a request with no file attached', async () => {

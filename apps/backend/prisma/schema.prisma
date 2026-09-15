@@ -56,6 +56,8 @@ model Admin {
   createdAt    DateTime  @default(now())
   recoveryRequestedAt DateTime?
 
+  assignedBookings Booking[]
+
   @@index([role])
   @@index([isActive])
   @@index([createdAt])
@@ -148,6 +150,9 @@ model Booking {
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
 
+  guideId String?
+  guide   Admin?  @relation(fields: [guideId], references: [id], onDelete: SetNull)
+
   participants Int
   startDate    DateTime
 
@@ -170,6 +175,7 @@ model Booking {
   @@index([paymentStatus])
   @@index([tourId])
   @@index([customerId])
+  @@index([guideId])
   @@index([startDate])
   @@index([createdAt])
 }

@@ -44,6 +44,7 @@ import {
   backendUploadAvatar,
   backendChangePassword,
   backendListAdmins,
+  backendListAssignableGuides,
   backendCreateAdmin,
   backendUpdateAdmin,
   backendDeleteAdmin,
@@ -424,6 +425,14 @@ ipcMain.handle('profile:change-password', async (_event, payload, accessToken: s
 ipcMain.handle('admins:list', async (_event, page, limit, filters, accessToken: string) => {
   try {
     return await backendListAdmins(page, limit, filters, accessToken);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'list failed');
+  }
+});
+
+ipcMain.handle('admins:list-assignable-guides', async (_event, accessToken: string) => {
+  try {
+    return await backendListAssignableGuides(accessToken);
   } catch (err) {
     throw new Error(err instanceof Error ? err.message : 'list failed');
   }

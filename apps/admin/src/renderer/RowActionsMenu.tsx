@@ -10,6 +10,8 @@ export interface RowAction {
   Icon: ComponentType<LucideProps>;
   onClick: () => void;
   danger?: boolean;
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 interface RowActionsMenuProps {
@@ -30,7 +32,13 @@ export function RowActionsMenu({
   return (
     <div className="row-actions justify-end">
       {primary && (
-        <Button size="sm" className="action-button" onClick={primary.onClick} disabled={disabled}>
+        <Button
+          size="sm"
+          className="action-button"
+          onClick={primary.onClick}
+          disabled={disabled || primary.disabled}
+          title={primary.disabledReason}
+        >
           <primary.Icon size={14} />
           {primary.label}
         </Button>
@@ -48,7 +56,8 @@ export function RowActionsMenu({
                 <button
                   type="button"
                   role="menuitem"
-                  disabled={disabled}
+                  disabled={disabled || action.disabled}
+                  title={action.disabledReason}
                   className={cn(
                     'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-heading hover:bg-sidebar-hover disabled:cursor-not-allowed disabled:opacity-60',
                     action.danger && 'text-error',

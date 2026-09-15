@@ -22,3 +22,7 @@ export const ROLE_BADGE_CLASS: Record<AdminRole, string> = {
   GUIDE: 'status-pending',
   STAFF: 'status-confirmed',
 };
+
+export function isGuideRole(role: AdminRole | undefined): boolean {
+  return role === 'GUIDE' || role === 'LEAD_GUIDE';
+}

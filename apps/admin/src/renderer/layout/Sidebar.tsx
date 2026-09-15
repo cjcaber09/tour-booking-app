@@ -3,6 +3,7 @@ import { useAuth } from '../states/authStore';
 import { useAppSettings } from '../states/appSettingsStore';
 import { cn } from '../lib/utils';
 import { ROLE_LABELS } from '../lib/roles';
+import type { AdminRole } from '../../preload';
 import { Button } from '../components/ui/button';
 import { ConfirmDialog } from '../ConfirmDialog';
 import {
@@ -41,6 +42,16 @@ const NAV_ITEMS: { view: View; label: string; Icon: typeof DashboardIcon }[] = [
   { view: 'settings', label: 'Settings', Icon: SettingsIcon },
 ];
 
+// A view absent from this map is visible to every role (dashboard/bookings/calendar/
+// settings). Exported so AppLayout.tsx's renderContent() can enforce the exact same
+// rule server-side-of-the-router, rather than trusting nav-hiding alone.
+export const VIEW_ROLES: Partial<Record<View, AdminRole[]>> = {
+  tours: ['ADMIN', 'STAFF'],
+  customers: ['ADMIN', 'STAFF'],
+  users: ['ADMIN'],
+  audit: ['ADMIN'],
+};
+
 export function Sidebar({ activeView, onNavigate, collapsed, onToggleCollapsed }: SidebarProps) {
   const { logout, session } = useAuth();
   const { settings } = useAppSettings();
@@ -49,6 +60,11 @@ export function Sidebar({ activeView, onNavigate, collapsed, onToggleCollapsed }
   // Falls back to the same default the AppSettings model uses, so this renders correctly
   // even before the first settings fetch resolves.
   const appName = settings?.appName ?? 'Andy Tours';
+
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    const allowed = VIEW_ROLES[item.view];
+    return !allowed || (admin && allowed.includes(admin.role));
+  });
 
   const navItemClass = (active: boolean) =>
     cn(
@@ -68,7 +84,7 @@ export function Sidebar({ activeView, onNavigate, collapsed, onToggleCollapsed }
       </div>
 
       <nav className="flex flex-1 flex-col gap-2">
-        {NAV_ITEMS.map(({ view, label, Icon }) => (
+        {visibleNavItems.map(({ view, label, Icon }) => (
           <Button
             key={view}
             variant="ghost"
