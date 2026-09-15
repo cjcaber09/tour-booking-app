@@ -383,6 +383,7 @@ export interface AppSettingsDto {
   language: string;
   currency: string;
   fiscalYearStartMonth: number;
+  maxBookingsPerDay: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -397,6 +398,7 @@ export interface UpdateAppSettingsPayload {
   language?: string;
   currency?: string;
   fiscalYearStartMonth?: number;
+  maxBookingsPerDay?: number;
 }
 
 export interface UploadLogoResult {

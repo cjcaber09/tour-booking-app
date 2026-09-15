@@ -75,6 +75,7 @@ model AppSettings {
   language             String @default("en")
   currency             String @default("USD")
   fiscalYearStartMonth Int    @default(1)
+  maxBookingsPerDay    Int    @default(1)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

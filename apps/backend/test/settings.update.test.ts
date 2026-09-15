@@ -11,6 +11,7 @@ let adminToken: string;
 let guideId: string;
 let guideToken: string;
 let originalCurrency: string;
+let originalMaxBookingsPerDay: number;
 
 beforeAll(async () => {
   const [admin, guide, settings] = await Promise.all([
@@ -23,10 +24,14 @@ beforeAll(async () => {
   adminToken = admin.accessToken;
   guideToken = guide.accessToken;
   originalCurrency = settings.currency;
+  originalMaxBookingsPerDay = settings.maxBookingsPerDay;
 });
 
 afterAll(async () => {
-  await prisma.appSettings.update({ where: { key: 'singleton' }, data: { currency: originalCurrency } });
+  await prisma.appSettings.update({
+    where: { key: 'singleton' },
+    data: { currency: originalCurrency, maxBookingsPerDay: originalMaxBookingsPerDay },
+  });
   await prisma.admin.deleteMany({ where: { id: { in: [adminId, guideId] } } });
   await prisma.$disconnect();
 });
@@ -75,5 +80,33 @@ describe('PATCH /settings', () => {
 
     const getRes = await request(app).get('/settings').set('Authorization', `Bearer ${guideToken}`);
     expect(getRes.body.currency).toBe('EUR');
+  });
+
+  it('rejects a non-positive maxBookingsPerDay (400)', async () => {
+    const res = await request(app)
+      .patch('/settings')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ maxBookingsPerDay: 0 });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a non-integer maxBookingsPerDay (400)', async () => {
+    const res = await request(app)
+      .patch('/settings')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ maxBookingsPerDay: 1.5 });
+    expect(res.status).toBe(400);
+  });
+
+  it('updates maxBookingsPerDay for an ADMIN and persists the change', async () => {
+    const res = await request(app)
+      .patch('/settings')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ maxBookingsPerDay: 3 });
+    expect(res.status).toBe(200);
+    expect(res.body.maxBookingsPerDay).toBe(3);
+
+    const getRes = await request(app).get('/settings').set('Authorization', `Bearer ${guideToken}`);
+    expect(getRes.body.maxBookingsPerDay).toBe(3);
   });
 });

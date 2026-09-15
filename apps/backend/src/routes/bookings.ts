@@ -23,6 +23,8 @@ import {
   serializeBooking,
   autoCompleteIfDue,
   todayIsPastOrEqualStartDate,
+  assertDailyBookingCapNotExceeded,
+  dateOnly,
 } from '../lib/bookings';
 import { upload } from '../lib/upload';
 import { uploadPaymentProof } from '../lib/supabaseStorage';
@@ -244,6 +246,20 @@ bookingsRouter.patch('/:id', requireAuth, async (req, res, next) => {
 
     const [totalPrice, resolvedCustomerId] = await Promise.all([totalPricePromise, resolvedCustomerIdPromise]);
 
+    // Only a CONFIRMED booking's startDate guards a day's slot — a PENDING booking
+    // never does (see assertDailyBookingCapNotExceeded), and only re-check when the
+    // date is actually changing: this booking's own row still counts toward its
+    // current day until the update commits, so an unconditional check would falsely
+    // block a no-op resubmission of the same startDate on an already-full day. Checked
+    // after computeTotalPrice above so an invalid tourId/offered-date still surfaces
+    // its own error instead of being masked by an unrelated full-day rejection.
+    if (existing.status === 'CONFIRMED' && startDate !== undefined) {
+      const newDay = dateOnly(new Date(startDate));
+      if (newDay.getTime() !== dateOnly(existing.startDate).getTime()) {
+        await assertDailyBookingCapNotExceeded(new Date(startDate));
+      }
+    }
+
     const effectiveAmountPaid = amountPaid !== undefined ? amountPaid : existing.amountPaid;
 
     const booking = await prisma.booking.update({
@@ -287,6 +303,8 @@ bookingsRouter.post('/:id/confirm', requireAuth, async (req, res, next) => {
       return;
     }
 
+    await assertDailyBookingCapNotExceeded(existing.startDate);
+
     const booking = await prisma.booking.update({
       where: { id: req.params.id },
       data: { status: 'CONFIRMED' },
@@ -294,6 +312,10 @@ bookingsRouter.post('/:id/confirm', requireAuth, async (req, res, next) => {
     });
     res.json(serializeBooking(booking));
   } catch (err) {
+    if (err instanceof BookingServiceError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
     next(err);
   }
 });

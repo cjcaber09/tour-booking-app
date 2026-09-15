@@ -15,6 +15,19 @@ const createdTourIds: string[] = [];
 const createdCustomerIds: string[] = [];
 const createdBookingIds: string[] = [];
 
+// The "max bookings per day" cap (default 1) counts CONFIRMED bookings per calendar
+// day, and every booking created here via POST /bookings lands as CONFIRMED — so each
+// one needs its own distinct day by default, or later creates would 409 against
+// earlier ones. Anchored far in the future (year 2091, distinct from other test
+// files' anchors) so it never collides with a hardcoded date used elsewhere in the
+// suite; callers that need a specific date (e.g. testing offered-dates validation)
+// still override it via `overrides.startDate`.
+const dateAnchor = Date.now() % 10000;
+let dayOffset = 0;
+function uniqueStartDate(): string {
+  return new Date(Date.UTC(2091, 0, 1 + dateAnchor + dayOffset++)).toISOString();
+}
+
 async function createBooking(overrides: Record<string, unknown> = {}) {
   const res = await request(app)
     .post('/bookings')
@@ -22,7 +35,7 @@ async function createBooking(overrides: Record<string, unknown> = {}) {
     .send({
       tourId,
       participants: 1,
-      startDate: '2027-06-01T00:00:00.000Z',
+      startDate: uniqueStartDate(),
       customerId,
       ...overrides,
     });

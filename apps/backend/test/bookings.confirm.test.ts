@@ -13,6 +13,15 @@ const createdTourIds: string[] = [];
 const createdCustomerIds: string[] = [];
 const createdBookingIds: string[] = [];
 
+// The "max bookings per day" cap (default 1) counts CONFIRMED bookings per calendar
+// day, and confirming moves a booking into that count — so each booking this file
+// confirms needs its own distinct day, or a later confirm would 409 against an
+// earlier one for a reason unrelated to what that test is actually checking.
+// Anchored far in the future (year 2092, distinct from other test files' anchors) so
+// it never collides with a hardcoded date used elsewhere in the suite.
+const dateAnchor = Date.now() % 10000;
+let dayOffset = 0;
+
 async function createPendingBooking() {
   const booking = await prisma.booking.create({
     data: {
@@ -20,7 +29,7 @@ async function createPendingBooking() {
       tourId,
       customerId,
       participants: 1,
-      startDate: new Date(),
+      startDate: new Date(Date.UTC(2092, 0, 1 + dateAnchor + dayOffset++)),
       totalPrice: 100,
       status: 'PENDING',
     },
